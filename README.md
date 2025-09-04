@@ -2,6 +2,10 @@
 
 PSMouseJiggler is a PowerShell module designed to simulate mouse movements to prevent your computer from going idle. This project provides both a command-line interface and a graphical user interface (GUI) for ease of use.
 
+![CI](https://github.com/PowerShellYoungTeam/PSMouseJiggler/actions/workflows/ci.yml/badge.svg)
+[![PowerShell Gallery Version](https://img.shields.io/powershellgallery/v/PSMouseJiggler)](https://www.powershellgallery.com/packages/PSMouseJiggler)
+[![PowerShell Gallery](https://img.shields.io/powershellgallery/dt/PSMouseJiggler)](https://www.powershellgallery.com/packages/PSMouseJiggler)
+
 ## Features
 
 - **Mouse Movement Simulation**: Simulates mouse movements to keep your computer awake.
@@ -21,14 +25,20 @@ PSMouseJiggler is a PowerShell module designed to simulate mouse movements to pr
 
 ### Installation
 
-#### Option 1: Using the installer script
+#### PowerShell Gallery (Recommended)
+
+```powershell
+Install-Module -Name MarksTemple -Scope CurrentUser
+```
+
+#### Using the installer script
 To install PSMouseJiggler, run the following command in PowerShell:
 
 ```powershell
 .\install.ps1
 ```
 
-#### Option 2: Manual installation
+#### Manual installation
 
 1. Copy the `PSMouseJiggler` folder from `src\PSMouseJiggler` to your PowerShell modules directory:
    - Windows PowerShell: `$env:USERPROFILE\Documents\WindowsPowerShell\Modules\`
