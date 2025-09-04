@@ -26,14 +26,6 @@ jobs:
         run: |
           Invoke-Pester -Script tests/PSMouseJiggler.Module.Tests.ps1 -OutputFormat NUnitXml -OutputFile tests/TestResults.xml
 
-      - name: Publish Test Results
-        uses: dorny/test-reporter@v1
-        if: success() || failure()
-        with:
-          name: Pester Tests
-          path: tests/TestResults.xml
-          reporter: java-junit
-
       - name: Build PSMouseJiggler Module
         shell: pwsh
         run: |
