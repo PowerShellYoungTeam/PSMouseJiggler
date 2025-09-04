@@ -1,7 +1,0 @@
-{
-  "movementSpeed": 100,
-  "movementPattern": "random",
-  "jiggleInterval": 5000,
-  "enableScheduledTasks": false,
-  "scheduledTimes": []
-}

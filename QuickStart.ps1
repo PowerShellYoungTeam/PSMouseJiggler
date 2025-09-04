@@ -21,11 +21,11 @@ $config | Format-List
 # Demonstrate help system
 Write-Host "`n4. Getting help for main functions:" -ForegroundColor Yellow
 Write-Host "   - Start-PSMouseJiggler: " -NoNewline
-(Get-Help Start-PSMouseJiggler -Brief).Synopsis
+Get-Help Start-PSMouseJiggler
 Write-Host "   - Stop-PSMouseJiggler: " -NoNewline
-(Get-Help Stop-PSMouseJiggler -Brief).Synopsis
+Get-Help Stop-PSMouseJiggle
 Write-Host "   - Show-PSMouseJigglerGUI: " -NoNewline
-(Get-Help Show-PSMouseJigglerGUI -Brief).Synopsis
+Get-Help Show-PSMouseJigglerGUI
 
 Write-Host "`n5. Usage examples:" -ForegroundColor Yellow
 Write-Host "   # Start with default settings:"
