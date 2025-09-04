@@ -28,7 +28,7 @@ PSMouseJiggler is a PowerShell module designed to simulate mouse movements to pr
 #### PowerShell Gallery (Recommended)
 
 ```powershell
-Install-Module -Name MarksTemple -Scope CurrentUser
+Install-Module -Name PSMouseJiggler -Scope CurrentUser
 ```
 
 #### Using the installer script
