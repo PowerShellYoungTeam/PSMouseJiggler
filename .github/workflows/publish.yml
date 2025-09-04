@@ -1,0 +1,51 @@
+name: Publish Module
+
+on:
+  workflow_dispatch:
+  release:
+    types: [created]
+
+jobs:
+  publish:
+    name: Publish to Powershell Gallery
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          Install-Module -Name Pester -Force -SkipPublisherCheck
+          Install-Module -Name PowerShellGet -Force -AllowClobber
+          Install-Module -Name PSScriptAnalyzer -Force -AllowClobber
+
+      - name: Run tests
+        shell: pwsh
+        run: |
+          Invoke-Pester -Script tests/PSMouseJiggler.Module.Tests.ps1
+
+      - name: Validate Module Manifest
+        shell: pwsh
+        run: |
+          Test-ModuleManifest -Path src/PSMouseJiggler/PSMouseJiggler.psd1
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Force -AllowClobber
+          Invoke-ScriptAnalyzer -Path src/PSMouseJiggler -Recurse -Severity Warning,Error
+
+      - name: Publish to PowerShell Gallery
+        shell: pwsh
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          # Get version from module manifest
+          $manifest = Test-ModuleManifest -Path src/PSMouseJiggler/PSMouseJiggler.psd1
+          $version = $manifest.Version
+          Write-Host "Publishing PSMouseJiggler version $version to PowerShell Gallery"
+
+          # Publish the module
+          $modulePath = "src\PSMouseJiggler"
+          Publish-Module -Path $modulePath -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -Force
