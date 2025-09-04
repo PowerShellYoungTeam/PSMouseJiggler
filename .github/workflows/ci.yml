@@ -14,26 +14,29 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up PowerShell
-        uses: pwsh/pwsh@v1
+        uses: actions/checkout@v3
 
       - name: Install Pester
+        shell: pwsh
         run: |
           Install-Module -Name Pester -Force -SkipPublisherCheck
 
       - name: Run Pester Tests
+        shell: pwsh
         run: |
-          Invoke-Pester -Script tests/PSMouseJiggler.Tests.ps1 -OutputFormat NUnitXml -OutputFile tests/TestResults.xml
+          Invoke-Pester -Script tests/PSMouseJiggler.Module.Tests.ps1 -OutputFormat NUnitXml -OutputFile tests/TestResults.xml
 
       - name: Publish Test Results
-        uses: actions/upload-artifact@v2
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
         with:
-          name: test-results
+          name: Pester Tests
           path: tests/TestResults.xml
+          reporter: java-junit
 
-      - name: Build PSMouseJiggler
+      - name: Build PSMouseJiggler Module
+        shell: pwsh
         run: |
-          # Add any build steps if necessary
-          Write-Host "Building PSMouseJiggler..."
+          # Validate module manifest
+          Test-ModuleManifest -Path PSMouseJiggler/PSMouseJiggler.psd1
+          Write-Host "PSMouseJiggler module manifest is valid" -ForegroundColor Green

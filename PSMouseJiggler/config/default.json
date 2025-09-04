@@ -1,0 +1,16 @@
+{
+    "movementSpeed": 1000,
+    "movementPattern": "Random",
+    "jiggleInterval": 1000,
+    "enableScheduledTasks": false,
+    "scheduledTimes": [],
+    "autoJiggle": false,
+    "duration": 0,
+    "guiSettings": {
+        "windowPosition": {
+            "x": 0,
+            "y": 0
+        },
+        "rememberSettings": true
+    }
+}

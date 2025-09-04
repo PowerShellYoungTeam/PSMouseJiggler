@@ -1,45 +1,41 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  release:
+    types: [published]
 
 jobs:
-  release:
+  test-and-package:
     runs-on: windows-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - name: Set up PowerShell
-        uses: actions/setup-powershell@v2
-
-      - name: Install dependencies
+      - name: Install Pester
+        shell: pwsh
         run: |
           Install-Module -Name Pester -Force -SkipPublisherCheck
 
       - name: Run tests
+        shell: pwsh
         run: |
-          Invoke-Pester -Script tests/PSMouseJiggler.Tests.ps1
+          Invoke-Pester -Script tests/PSMouseJiggler.Module.Tests.ps1
 
-  - name: Package PSMouseJiggler
+      - name: Package PSMouseJiggler
+        shell: pwsh
         run: |
-          $version = (Get-Content -Path .\config\default.json | ConvertFrom-Json).version
+          # Create module package
+          $version = "1.0.0"  # You can read this from the manifest if needed
           $outputPath = "PSMouseJiggler-$version.zip"
-          Compress-Archive -Path src\* -DestinationPath $outputPath
+          Compress-Archive -Path PSMouseJiggler\* -DestinationPath $outputPath
 
-      - name: Upload Release Artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: PSMouseJiggler
-          path: PSMouseJiggler-*.zip
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref }}
-          files: PSMouseJiggler-*.zip
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./PSMouseJiggler-1.0.0.zip
+          asset_name: PSMouseJiggler-1.0.0.zip
+          asset_content_type: application/zip

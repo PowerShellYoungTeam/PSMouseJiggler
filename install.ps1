@@ -1,4 +1,4 @@
-# This script installs the PSMouseJiggler application, sets up necessary dependencies, and configures the environment.
+# This script installs the PSMouseJiggler PowerShell module
 
 # Check for PowerShell version
 if ($PSVersionTable.PSVersion.Major -lt 5) {
@@ -6,27 +6,44 @@ if ($PSVersionTable.PSVersion.Major -lt 5) {
     exit 1
 }
 
-# Define installation directory
-$installDir = "$PSScriptRoot\src"
-
-# Create installation directory if it doesn't exist
-if (-Not (Test-Path -Path $installDir)) {
-    New-Item -ItemType Directory -Path $installDir
+# Define installation directories
+$documentsPath = [Environment]::GetFolderPath("MyDocuments")
+$moduleBasePath = Join-Path $documentsPath "WindowsPowerShell\Modules"
+if ($PSVersionTable.PSVersion.Major -ge 6) {
+    $moduleBasePath = Join-Path $documentsPath "PowerShell\Modules"
 }
 
-# Copy source files to installation directory
-# Copy source files to installation directory
-Copy-Item -Path "$PSScriptRoot\src\*" -Destination $installDir -Recurse -Force
+$moduleInstallPath = Join-Path $moduleBasePath "PSMouseJiggler"
+
+Write-Host "Installing PSMouseJiggler module to: $moduleInstallPath" -ForegroundColor Yellow
+
+# Create module directory if it doesn't exist
+if (-Not (Test-Path -Path $moduleInstallPath)) {
+    New-Item -ItemType Directory -Path $moduleInstallPath -Force
+}
+
+# Copy module files to installation directory
+Copy-Item -Path "$PSScriptRoot\PSMouseJiggler\*" -Destination $moduleInstallPath -Recurse -Force
 
 # Install required modules if not already installed
 $requiredModules = @('Pester')
 
 foreach ($module in $requiredModules) {
     if (-Not (Get-Module -ListAvailable -Name $module)) {
+        Write-Host "Installing required module: $module" -ForegroundColor Yellow
         Install-Module -Name $module -Force -Scope CurrentUser
     }
 }
 
-# Display installation success message
-Write-Host "PSMouseJiggler has been installed successfully." -ForegroundColor Green
-Write-Host "You can start using it by running 'src\PSMouseJiggler.ps1'." -ForegroundColor Yellow
+# Import the module to verify installation
+try {
+    Import-Module PSMouseJiggler -Force
+    Write-Host "PSMouseJiggler module has been installed and imported successfully!" -ForegroundColor Green
+    Write-Host "Available commands:" -ForegroundColor Cyan
+    Get-Command -Module PSMouseJiggler | Format-Table Name, CommandType -AutoSize
+    Write-Host "`nTo get started, run: Start-PSMouseJiggler" -ForegroundColor Yellow
+    Write-Host "For GUI interface, run: Show-PSMouseJigglerGUI" -ForegroundColor Yellow
+} catch {
+    Write-Host "Installation completed but there was an issue importing the module: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "You may need to restart PowerShell or run 'Import-Module PSMouseJiggler' manually." -ForegroundColor Yellow
+}
