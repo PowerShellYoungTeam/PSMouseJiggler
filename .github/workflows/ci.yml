@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up PowerShell
+        uses: pwsh/pwsh@v1
+
+      - name: Install Pester
+        run: |
+          Install-Module -Name Pester -Force -SkipPublisherCheck
+
+      - name: Run Pester Tests
+        run: |
+          Invoke-Pester -Script tests/PSMouseJiggler.Tests.ps1 -OutputFormat NUnitXml -OutputFile tests/TestResults.xml
+
+      - name: Publish Test Results
+        uses: actions/upload-artifact@v2
+        with:
+          name: test-results
+          path: tests/TestResults.xml
+
+      - name: Build PSMouseJiggler
+        run: |
+          # Add any build steps if necessary
+          Write-Host "Building PSMouseJiggler..."

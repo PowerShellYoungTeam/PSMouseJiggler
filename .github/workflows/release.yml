@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up PowerShell
+        uses: actions/setup-powershell@v2
+
+      - name: Install dependencies
+        run: |
+          Install-Module -Name Pester -Force -SkipPublisherCheck
+
+      - name: Run tests
+        run: |
+          Invoke-Pester -Script tests/PSMouseJiggler.Tests.ps1
+
+  - name: Package PSMouseJiggler
+        run: |
+          $version = (Get-Content -Path .\config\default.json | ConvertFrom-Json).version
+          $outputPath = "PSMouseJiggler-$version.zip"
+          Compress-Archive -Path src\* -DestinationPath $outputPath
+
+      - name: Upload Release Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: PSMouseJiggler
+          path: PSMouseJiggler-*.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref }}
+          files: PSMouseJiggler-*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
