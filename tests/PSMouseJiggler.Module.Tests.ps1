@@ -3,7 +3,7 @@
 
 BeforeAll {
     # Import the module from the module directory
-    $ModulePath = Join-Path -Path $PSScriptRoot -ChildPath "..\PSMouseJiggler\PSMouseJiggler.psd1"
+    $ModulePath = Join-Path -Path $PSScriptRoot -ChildPath "..\src\PSMouseJiggler\PSMouseJiggler.psd1"
     Import-Module $ModulePath -Force
 }
 
@@ -11,7 +11,7 @@ Describe 'PSMouseJiggler Module Tests' {
 
     Context 'Module Loading' {
         It 'Should load the module successfully' {
-            $module = Get-Module PSMouseJiggler
+            $module = Get-Module PSMouseJiggler | Select-Object -First 1
             $module | Should -Not -BeNullOrEmpty
             $module.Name | Should -Be 'PSMouseJiggler'
         }
@@ -74,9 +74,9 @@ Describe 'PSMouseJiggler Module Tests' {
 
             # Create test configuration
             $testConfig = [PSCustomObject]@{
-                MovementSpeed = 1500
+                MovementSpeed   = 1500
                 MovementPattern = 'Circular'
-                TestProperty = 'TestValue'
+                TestProperty    = 'TestValue'
             }
 
             # Save configuration
@@ -100,7 +100,7 @@ Describe 'PSMouseJiggler Module Tests' {
 
             # Create initial configuration
             $initialConfig = [PSCustomObject]@{
-                MovementSpeed = 1000
+                MovementSpeed   = 1000
                 MovementPattern = 'Random'
             }
             Save-Configuration -Configuration $initialConfig -ConfigFilePath $tempConfigPath
@@ -158,7 +158,7 @@ Describe 'PSMouseJiggler Module Tests' {
         It 'Should accept valid movement patterns' {
             $validPatterns = @('Random', 'Horizontal', 'Vertical', 'Circular')
             foreach ($pattern in $validPatterns) {
-                { Get-NewMousePosition -CurrentPosition ([System.Drawing.Point]::new(0,0)) -Pattern $pattern } | Should -Not -Throw
+                { Get-NewMousePosition -CurrentPosition ([System.Drawing.Point]::new(0, 0)) -Pattern $pattern } | Should -Not -Throw
             }
         }
     }

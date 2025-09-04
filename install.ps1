@@ -23,7 +23,7 @@ if (-Not (Test-Path -Path $moduleInstallPath)) {
 }
 
 # Copy module files to installation directory
-Copy-Item -Path "$PSScriptRoot\PSMouseJiggler\*" -Destination $moduleInstallPath -Recurse -Force
+Copy-Item -Path "$PSScriptRoot\src\PSMouseJiggler\*" -Destination $moduleInstallPath -Recurse -Force
 
 # Install required modules if not already installed
 $requiredModules = @('Pester')
@@ -43,7 +43,8 @@ try {
     Get-Command -Module PSMouseJiggler | Format-Table Name, CommandType -AutoSize
     Write-Host "`nTo get started, run: Start-PSMouseJiggler" -ForegroundColor Yellow
     Write-Host "For GUI interface, run: Show-PSMouseJigglerGUI" -ForegroundColor Yellow
-} catch {
+}
+catch {
     Write-Host "Installation completed but there was an issue importing the module: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "You may need to restart PowerShell or run 'Import-Module PSMouseJiggler' manually." -ForegroundColor Yellow
 }

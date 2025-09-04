@@ -7,12 +7,14 @@ Thank you for your interest in contributing to the PSMouseJiggler project! We we
 1. **Fork the Repository**: Start by forking the PSMouseJiggler repository to your own GitHub account. This will allow you to make changes without affecting the original project.
 
 2. **Clone Your Fork**: Clone your forked repository to your local machine using the following command:
-   ```
+
+   ```powershell
    git clone https://github.com/your-username/PSMouseJiggler.git
    ```
 
 3. **Create a Branch**: Before making any changes, create a new branch for your feature or bug fix:
-   ```
+
+   ```powershell
    git checkout -b feature/your-feature-name
    ```
 
@@ -21,12 +23,14 @@ Thank you for your interest in contributing to the PSMouseJiggler project! We we
 5. **Test Your Changes**: Run the existing tests to ensure that your changes do not break any functionality. If you are adding new features, consider writing tests for them as well.
 
 6. **Commit Your Changes**: Once you are satisfied with your changes, commit them with a clear and descriptive commit message:
-   ```
+
+   ```powershell
    git commit -m "Add feature: your feature description"
    ```
 
 7. **Push to Your Fork**: Push your changes to your forked repository:
-   ```
+
+   ```powershell
    git push origin feature/your-feature-name
    ```
 

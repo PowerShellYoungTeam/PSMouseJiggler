@@ -28,7 +28,7 @@ jobs:
           # Create module package
           $version = "1.0.0"  # You can read this from the manifest if needed
           $outputPath = "PSMouseJiggler-$version.zip"
-          Compress-Archive -Path PSMouseJiggler\* -DestinationPath $outputPath
+          Compress-Archive -Path src\PSMouseJiggler\* -DestinationPath $outputPath
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1

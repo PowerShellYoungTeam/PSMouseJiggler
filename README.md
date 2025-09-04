@@ -29,7 +29,8 @@ To install PSMouseJiggler, run the following command in PowerShell:
 ```
 
 #### Option 2: Manual installation
-1. Copy the `PSMouseJiggler` folder to your PowerShell modules directory:
+
+1. Copy the `PSMouseJiggler` folder from `src\PSMouseJiggler` to your PowerShell modules directory:
    - Windows PowerShell: `$env:USERPROFILE\Documents\WindowsPowerShell\Modules\`
    - PowerShell Core: `$env:USERPROFILE\Documents\PowerShell\Modules\`
 
@@ -68,12 +69,20 @@ For detailed usage instructions, please refer to the [USAGE.md](docs/USAGE.md) f
 ## Module Structure
 
 ```
-PSMouseJiggler/
-├── PSMouseJiggler.psd1      # Module manifest
-├── PSMouseJiggler.psm1      # Main module file
-├── config/
-│   └── default.json         # Default configuration
-└── README.md                # Module documentation
+src/
+└── PSMouseJiggler/
+    ├── PSMouseJiggler.psd1      # Module manifest
+    ├── PSMouseJiggler.psm1      # Main module file
+    ├── config/
+    │   └── default.json         # Default configuration
+    └── README.md                # Module documentation
+tests/
+├── PSMouseJiggler.Module.Tests.ps1  # Module tests
+├── PSMouseJiggler.Tests.ps1         # Legacy tests
+└── Pester.ps1                       # Test runner
+docs/
+├── CONTRIBUTING.md
+└── USAGE.md
 ```
 
 ## Contributing

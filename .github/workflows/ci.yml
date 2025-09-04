@@ -38,5 +38,5 @@ jobs:
         shell: pwsh
         run: |
           # Validate module manifest
-          Test-ModuleManifest -Path PSMouseJiggler/PSMouseJiggler.psd1
+          Test-ModuleManifest -Path src/PSMouseJiggler/PSMouseJiggler.psd1
           Write-Host "PSMouseJiggler module manifest is valid" -ForegroundColor Green

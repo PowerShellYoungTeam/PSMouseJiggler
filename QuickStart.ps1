@@ -7,7 +7,7 @@ Write-Host ""
 
 # Import the module
 Write-Host "1. Importing PSMouseJiggler module..." -ForegroundColor Yellow
-Import-Module .\PSMouseJiggler\PSMouseJiggler.psd1 -Force
+Import-Module .\src\PSMouseJiggler\PSMouseJiggler.psd1 -Force
 
 # Show available commands
 Write-Host "`n2. Available commands:" -ForegroundColor Yellow
@@ -23,7 +23,7 @@ Write-Host "`n4. Getting help for main functions:" -ForegroundColor Yellow
 Write-Host "   - Start-PSMouseJiggler: " -NoNewline
 Get-Help Start-PSMouseJiggler
 Write-Host "   - Stop-PSMouseJiggler: " -NoNewline
-Get-Help Stop-PSMouseJiggle
+Get-Help Stop-PSMouseJiggler
 Write-Host "   - Show-PSMouseJigglerGUI: " -NoNewline
 Get-Help Show-PSMouseJigglerGUI
 
