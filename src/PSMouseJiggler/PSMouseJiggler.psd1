@@ -124,10 +124,13 @@
             # ReleaseNotes of this module
             ReleaseNotes             = @'
 Version 1.0.1
-- Minor bug fixes and improvements
+- Added advanced keep-awake methods for more reliable anti-idle functionality
+- Introduced hardware-level input simulation for broader compatibility
+- New API functions for custom automation and integration
 - Updated GUI layout for better usability
 - Enhanced configuration management
 - Improved scheduled task support
+- Minor bug fixes and improvements
 - PowerShell Gallery ready
 '@
 
