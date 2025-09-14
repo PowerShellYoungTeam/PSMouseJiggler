@@ -1137,7 +1137,10 @@ function Start-KeepAwake {
                     $input.mi.dy = Get-Random -Minimum -5 -Maximum 6
                     $input.mi.dwFlags = [MouseSimulator]::MOUSEEVENTF_MOVE
                     $inputs = @($input)
-                    [MouseSimulator]::SendInput(1, $inputs, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT]))
+                    $result = [MouseSimulator]::SendInput(1, $inputs, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT]))
+                    if ($result -eq 0) {
+                        Write-Warning "MouseSimulator::SendInput failed to send input event."
+                    }
                 }
                 'Keyboard' {
                     # Press a non-disruptive key (F15 is rarely used)
