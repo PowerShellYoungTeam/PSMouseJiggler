@@ -1004,7 +1004,10 @@ function Send-MouseInput {
     $input.mi.dwExtraInfo = [IntPtr]::Zero
 
     $inputs = @($input)
-    [MouseSimulator]::SendInput(1, $inputs, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT])) | Out-Null
+    $result = [MouseSimulator]::SendInput(1, $inputs, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT]))
+    if ($result -eq 0) {
+        Write-Error "SendInput failed to send mouse event. Win32 error: $([System.Runtime.InteropServices.Marshal]::GetLastWin32Error())"
+    }
 
     Write-Verbose "Sent hardware-level mouse movement: X=$XOffset, Y=$YOffset"
 }
