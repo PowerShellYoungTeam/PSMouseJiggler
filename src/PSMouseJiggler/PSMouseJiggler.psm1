@@ -995,16 +995,17 @@ function Send-MouseInput {
     }
 "@
 
-    $input = New-Object MouseSimulator+INPUT
-    $input.type = [MouseSimulator]::INPUT_MOUSE
-    $input.mi.dx = $XOffset
-    $input.mi.dy = $YOffset
-    $input.mi.dwFlags = [MouseSimulator]::MOUSEEVENTF_MOVE
-    $input.mi.time = 0
-    $input.mi.dwExtraInfo = [IntPtr]::Zero
+    $mouseInputStructure = New-Object MouseSimulator+INPUT
+    $mouseInputStructure.type = [MouseSimulator]::INPUT_MOUSE
+    $mouseInputStructure.mi.dx = $XOffset
+    $mouseInputStructure.mi.dy = $YOffset
+    $mouseInputStructure.mi.dwFlags = [MouseSimulator]::MOUSEEVENTF_MOVE
+    $mouseInputStructure.mi.time = 0
+    $mouseInputStructure.mi.dwExtraInfo = [IntPtr]::Zero
 
-    $inputs = @($input)
-    $result = [MouseSimulator]::SendInput(1, $inputs, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT]))
+    $inputArray = @($mouseInputStructure)
+    $result = [MouseSimulator]::SendInput(1, $inputArray, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT]))
+
     if ($result -eq 0) {
         Write-Error "SendInput failed to send mouse event. Win32 error: $([System.Runtime.InteropServices.Marshal]::GetLastWin32Error())"
     }
@@ -1134,13 +1135,16 @@ function Start-KeepAwake {
                 }
                 'MouseHardware' {
                     # Use hardware-level mouse movement
-                    $input = New-Object MouseSimulator+INPUT
-                    $input.type = [MouseSimulator]::INPUT_MOUSE
-                    $input.mi.dx = Get-Random -Minimum -5 -Maximum 6
-                    $input.mi.dy = Get-Random -Minimum -5 -Maximum 6
-                    $input.mi.dwFlags = [MouseSimulator]::MOUSEEVENTF_MOVE
-                    $inputs = @($input)
-                    $result = [MouseSimulator]::SendInput(1, $inputs, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT]))
+                    $mouseInputStructure = New-Object MouseSimulator+INPUT
+                    $mouseInputStructure.type = [MouseSimulator]::INPUT_MOUSE
+                    $mouseInputStructure.mi.dx = Get-Random -Minimum -5 -Maximum 6
+                    $mouseInputStructure.mi.dy = Get-Random -Minimum -5 -Maximum 6
+                    $mouseInputStructure.mi.dwFlags = [MouseSimulator]::MOUSEEVENTF_MOVE
+                    $mouseInputStructure.mi.time = 0
+                    $mouseInputStructure.mi.dwExtraInfo = [IntPtr]::Zero
+
+                    $inputArray = @($mouseInputStructure)
+                    $result = [MouseSimulator]::SendInput(1, $inputArray, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT]))
                     if ($result -eq 0) {
                         Write-Warning "MouseSimulator::SendInput failed to send input event."
                     }
