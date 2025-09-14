@@ -110,7 +110,8 @@ function Start-PSMouseJiggler {
 
     if ($Duration -gt 0) {
         Write-Host "PSMouseJiggler will run for $Duration seconds" -ForegroundColor Yellow
-    } else {
+    }
+    else {
         Write-Host "PSMouseJiggler is running indefinitely. Use Stop-PSMouseJiggler to stop." -ForegroundColor Yellow
     }
 }
@@ -220,7 +221,7 @@ function Show-PSMouseJigglerGUI {
     # Create the main form
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "PSMouseJiggler"
-    $form.Size = New-Object System.Drawing.Size(400, 300)
+    $form.Size = New-Object System.Drawing.Size(400, 410) # Increased height for new controls
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedDialog"
     $form.MaximizeBox = $false
@@ -273,57 +274,124 @@ function Show-PSMouseJigglerGUI {
     $durationTextBox.Size = New-Object System.Drawing.Size(100, 20)
     $form.Controls.Add($durationTextBox)
 
+    # Advanced mode checkbox
+    $advancedModeCheckbox = New-Object System.Windows.Forms.CheckBox
+    $advancedModeCheckbox.Text = "Use Advanced Keep-Awake Methods"
+    $advancedModeCheckbox.Location = New-Object System.Drawing.Point(20, 180)
+    $advancedModeCheckbox.Size = New-Object System.Drawing.Size(250, 20)
+    $form.Controls.Add($advancedModeCheckbox)
+
+    # Method selection group
+    $methodsGroupBox = New-Object System.Windows.Forms.GroupBox
+    $methodsGroupBox.Text = "Keep-Awake Methods"
+    $methodsGroupBox.Location = New-Object System.Drawing.Point(20, 210)
+    $methodsGroupBox.Size = New-Object System.Drawing.Size(350, 100)
+    $methodsGroupBox.Enabled = $false
+    $form.Controls.Add($methodsGroupBox)
+
+    # Method checkboxes
+    $mouseSoftwareCheckbox = New-Object System.Windows.Forms.CheckBox
+    $mouseSoftwareCheckbox.Text = "Software Mouse Movements"
+    $mouseSoftwareCheckbox.Location = New-Object System.Drawing.Point(10, 20)
+    $mouseSoftwareCheckbox.Size = New-Object System.Drawing.Size(200, 20)
+    $mouseSoftwareCheckbox.Checked = $true
+    $methodsGroupBox.Controls.Add($mouseSoftwareCheckbox)
+
+    $mouseHardwareCheckbox = New-Object System.Windows.Forms.CheckBox
+    $mouseHardwareCheckbox.Text = "Hardware Mouse Movements"
+    $mouseHardwareCheckbox.Location = New-Object System.Drawing.Point(10, 45)
+    $mouseHardwareCheckbox.Size = New-Object System.Drawing.Size(200, 20)
+    $mouseHardwareCheckbox.Checked = $true
+    $methodsGroupBox.Controls.Add($mouseHardwareCheckbox)
+
+    $keyboardCheckbox = New-Object System.Windows.Forms.CheckBox
+    $keyboardCheckbox.Text = "Keyboard Input"
+    $keyboardCheckbox.Location = New-Object System.Drawing.Point(10, 70)
+    $keyboardCheckbox.Size = New-Object System.Drawing.Size(120, 20)
+    $keyboardCheckbox.Checked = $true
+    $methodsGroupBox.Controls.Add($keyboardCheckbox)
+
+    $systemApiCheckbox = New-Object System.Windows.Forms.CheckBox
+    $systemApiCheckbox.Text = "System API"
+    $systemApiCheckbox.Location = New-Object System.Drawing.Point(180, 70)
+    $systemApiCheckbox.Size = New-Object System.Drawing.Size(120, 20)
+    $systemApiCheckbox.Checked = $true
+    $methodsGroupBox.Controls.Add($systemApiCheckbox)
+
+    # Enable/disable method selection based on advanced mode
+    $advancedModeCheckbox.Add_CheckedChanged({
+            $methodsGroupBox.Enabled = $advancedModeCheckbox.Checked
+        })
+
     # Start button
     $startButton = New-Object System.Windows.Forms.Button
     $startButton.Text = "Start Jiggling"
-    $startButton.Location = New-Object System.Drawing.Point(50, 190)
+    $startButton.Location = New-Object System.Drawing.Point(50, 320)
     $startButton.Size = New-Object System.Drawing.Size(100, 30)
     $startButton.Add_Click({
-        try {
-            $interval = [int]$intervalTextBox.Text
-            $pattern = $patternComboBox.SelectedItem.ToString()
-            $duration = [int]$durationTextBox.Text
+            try {
+                $interval = [int]$intervalTextBox.Text
+                $duration = [int]$durationTextBox.Text
 
-            Start-PSMouseJiggler -Interval $interval -MovementPattern $pattern -Duration $duration
-            $statusLabel.Text = "Status: Running ($pattern)"
-            $startButton.Enabled = $false
-            $stopButton.Enabled = $true
-        }
-        catch {
-            [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
-        }
-    })
+                if ($advancedModeCheckbox.Checked) {
+                    $methods = @()
+                    if ($mouseSoftwareCheckbox.Checked) { $methods += 'MouseSoftware' }
+                    if ($mouseHardwareCheckbox.Checked) { $methods += 'MouseHardware' }
+                    if ($keyboardCheckbox.Checked) { $methods += 'Keyboard' }
+                    if ($systemApiCheckbox.Checked) { $methods += 'SystemAPI' }
+
+                    if ($methods.Count -eq 0) {
+                        [System.Windows.Forms.MessageBox]::Show("Please select at least one keep-awake method.", "Error", "OK", "Error")
+                        return
+                    }
+
+                    Start-KeepAwake -Methods $methods -Interval $interval -Duration $duration
+                    $statusLabel.Text = "Status: Running (Advanced Mode)"
+                }
+                else {
+                    $pattern = $patternComboBox.SelectedItem.ToString()
+                    Start-PSMouseJiggler -Interval $interval -MovementPattern $pattern -Duration $duration
+                    $statusLabel.Text = "Status: Running ($pattern)"
+                }
+
+                $startButton.Enabled = $false
+                $stopButton.Enabled = $true
+            }
+            catch {
+                [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
+            }
+        })
     $form.Controls.Add($startButton)
 
     # Stop button
     $stopButton = New-Object System.Windows.Forms.Button
     $stopButton.Text = "Stop Jiggling"
-    $stopButton.Location = New-Object System.Drawing.Point(200, 190)
+    $stopButton.Location = New-Object System.Drawing.Point(200, 320)
     $stopButton.Size = New-Object System.Drawing.Size(100, 30)
     $stopButton.Enabled = $false
     $stopButton.Add_Click({
-        Stop-PSMouseJiggler
-        $statusLabel.Text = "Status: Stopped"
-        $startButton.Enabled = $true
-        $stopButton.Enabled = $false
-    })
+            Stop-PSMouseJiggler
+            $statusLabel.Text = "Status: Stopped"
+            $startButton.Enabled = $true
+            $stopButton.Enabled = $false
+        })
     $form.Controls.Add($stopButton)
 
     # Timer to update status
     $timer = New-Object System.Windows.Forms.Timer
     $timer.Interval = 1000
     $timer.Add_Tick({
-        if (-not $script:JigglingActive -and $stopButton.Enabled) {
-            $statusLabel.Text = "Status: Stopped"
-            $startButton.Enabled = $true
-            $stopButton.Enabled = $false
-        }
-    })
+            if (-not $script:JigglingActive -and $stopButton.Enabled) {
+                $statusLabel.Text = "Status: Stopped"
+                $startButton.Enabled = $true
+                $stopButton.Enabled = $false
+            }
+        })
     $timer.Start()
 
     # Show the form
-    $form.Add_Shown({$form.Activate()})
-    $form.Add_FormClosed({$timer.Stop()})
+    $form.Add_Shown({ $form.Activate() })
+    $form.Add_FormClosed({ $timer.Stop() })
     [void]$form.ShowDialog()
 }
 
@@ -366,7 +434,8 @@ function Get-Configuration {
             Write-Warning "Error reading configuration file: $($_.Exception.Message)"
             return Get-DefaultConfiguration
         }
-    } else {
+    }
+    else {
         Write-Verbose "Configuration file not found, using defaults"
         return Get-DefaultConfiguration
     }
@@ -485,12 +554,12 @@ function Reset-Configuration {
 
 function Get-DefaultConfiguration {
     return [PSCustomObject]@{
-        MovementSpeed = 1000
+        MovementSpeed   = 1000
         MovementPattern = "Random"
-        AutoJiggle = $false
-        Duration = 0
-        GUISettings = @{
-            WindowPosition = @{ X = 0; Y = 0 }
+        AutoJiggle      = $false
+        Duration        = 0
+        GUISettings     = @{
+            WindowPosition   = @{ X = 0; Y = 0 }
             RememberSettings = $true
         }
     }
@@ -786,6 +855,326 @@ function Stop-ScheduledTask {
 
 #endregion
 
+# ...existing code...
+
+#region Advanced Wake Prevention Functions
+
+<#
+.SYNOPSIS
+    Prevents system idle using Windows SetThreadExecutionState API.
+
+.DESCRIPTION
+    Uses P/Invoke to call the SetThreadExecutionState Windows API to prevent the system from sleeping.
+
+.PARAMETER Duration
+    Duration in seconds to prevent idle. Default is 0 (continuous).
+
+.EXAMPLE
+    Prevent-SystemIdle -Duration 3600
+    Prevents the system from going idle for 1 hour.
+#>
+function Prevent-SystemIdle {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [int]$Duration = 0
+    )
+
+    # Define the P/Invoke signature for SetThreadExecutionState
+    Add-Type -TypeDefinition @"
+    using System;
+    using System.Runtime.InteropServices;
+
+    public static class DisplayState {
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        public static extern uint SetThreadExecutionState(uint esFlags);
+
+        public const uint ES_CONTINUOUS = 0x80000000;
+        public const uint ES_SYSTEM_REQUIRED = 0x00000001;
+        public const uint ES_DISPLAY_REQUIRED = 0x00000002;
+        public const uint ES_AWAYMODE_REQUIRED = 0x00000040;
+    }
+"@
+
+    # Prevent system sleep and display sleep
+    [DisplayState]::SetThreadExecutionState(
+        [DisplayState]::ES_CONTINUOUS -bor
+        [DisplayState]::ES_SYSTEM_REQUIRED -bor
+        [DisplayState]::ES_DISPLAY_REQUIRED) | Out-Null
+
+    Write-Verbose "System idle prevention activated"
+
+    if ($Duration -gt 0) {
+        Start-Sleep -Seconds $Duration
+        # Reset to normal state
+        [DisplayState]::SetThreadExecutionState([DisplayState]::ES_CONTINUOUS) | Out-Null
+        Write-Verbose "System idle prevention deactivated after $Duration seconds"
+    }
+}
+
+<#
+.SYNOPSIS
+    Simulates keyboard input using hardware-level API.
+
+.DESCRIPTION
+    Uses SendInput Windows API to simulate hardware-level keyboard events.
+
+.PARAMETER Key
+    The key to simulate. Defaults to a non-disruptive key (F15).
+
+.EXAMPLE
+    Send-KeyboardInput
+    Sends a function key press that's typically not mapped to any action.
+#>
+function Send-KeyboardInput {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [string]$Key = "{F15}"
+    )
+
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.SendKeys]::SendWait($Key)
+    Write-Verbose "Sent keyboard input: $Key"
+}
+
+<#
+.SYNOPSIS
+    Simulates mouse input using hardware-level API.
+
+.DESCRIPTION
+    Uses SendInput Windows API to simulate hardware-level mouse events.
+
+.PARAMETER XOffset
+    Horizontal movement offset.
+
+.PARAMETER YOffset
+    Vertical movement offset.
+
+.EXAMPLE
+    Send-MouseInput -XOffset 5 -YOffset -5
+    Simulates mouse movement using hardware-level API.
+#>
+function Send-MouseInput {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [int]$XOffset = 0,
+
+        [Parameter()]
+        [int]$YOffset = 0
+    )
+
+    # Define the SendInput API
+    Add-Type -TypeDefinition @"
+    using System;
+    using System.Runtime.InteropServices;
+
+    public static class MouseSimulator {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MOUSEINPUT {
+            public int dx;
+            public int dy;
+            public uint mouseData;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct INPUT {
+            public uint type;
+            public MOUSEINPUT mi;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        public const int INPUT_MOUSE = 0;
+        public const int MOUSEEVENTF_MOVE = 0x0001;
+        public const int MOUSEEVENTF_ABSOLUTE = 0x8000;
+    }
+"@
+
+    $input = New-Object MouseSimulator+INPUT
+    $input.type = [MouseSimulator]::INPUT_MOUSE
+    $input.mi.dx = $XOffset
+    $input.mi.dy = $YOffset
+    $input.mi.dwFlags = [MouseSimulator]::MOUSEEVENTF_MOVE
+    $input.mi.time = 0
+    $input.mi.dwExtraInfo = [IntPtr]::Zero
+
+    $inputs = @($input)
+    [MouseSimulator]::SendInput(1, $inputs, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT])) | Out-Null
+
+    Write-Verbose "Sent hardware-level mouse movement: X=$XOffset, Y=$YOffset"
+}
+
+<#
+.SYNOPSIS
+    Keeps the system awake using multiple methods.
+
+.DESCRIPTION
+    Combines various techniques to prevent system sleep, including
+    mouse movements, keyboard input, and Windows API calls.
+
+.PARAMETER Methods
+    Array of methods to use. Default includes all available methods.
+
+.PARAMETER Interval
+    Time in milliseconds between actions. Default is 30000 (30 seconds).
+
+.PARAMETER Duration
+    Duration in seconds to run. Default is 0 (indefinite).
+
+.EXAMPLE
+    Start-KeepAwake -Interval 60000 -Duration 3600
+    Keeps the system awake for 1 hour, performing actions every 60 seconds.
+#>
+function Start-KeepAwake {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [ValidateSet('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI', 'All')]
+        [string[]]$Methods = @('All'),
+
+        [Parameter()]
+        [int]$Interval = 30000,
+
+        [Parameter()]
+        [int]$Duration = 0
+    )
+
+    if ($script:JigglingActive) {
+        Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
+        return
+    }
+
+    Write-Host "Starting PSMouseJiggler KeepAwake with multiple methods, interval: $Interval ms" -ForegroundColor Green
+
+    $script:JigglingActive = $true
+    $startTime = Get-Date
+
+    # If 'All' is specified, use all methods
+    if ($Methods -contains 'All') {
+        $Methods = @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI')
+    }
+
+    # Start the prevention immediately using the API
+    if ($Methods -contains 'SystemAPI') {
+        Prevent-SystemIdle
+    }
+
+    $script:JigglingJob = Start-Job -ScriptBlock {
+        param($Interval, $Methods, $Duration, $StartTime)
+
+        # Import required assemblies
+        Add-Type -AssemblyName System.Windows.Forms
+        Add-Type -AssemblyName System.Drawing
+
+        # Define required P/Invoke structures and methods
+        Add-Type -TypeDefinition @"
+        using System;
+        using System.Runtime.InteropServices;
+
+        public static class DisplayState {
+            [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+            public static extern uint SetThreadExecutionState(uint esFlags);
+
+            public const uint ES_CONTINUOUS = 0x80000000;
+            public const uint ES_SYSTEM_REQUIRED = 0x00000001;
+            public const uint ES_DISPLAY_REQUIRED = 0x00000002;
+        }
+
+        public static class MouseSimulator {
+            [StructLayout(LayoutKind.Sequential)]
+            public struct MOUSEINPUT {
+                public int dx;
+                public int dy;
+                public uint mouseData;
+                public uint dwFlags;
+                public uint time;
+                public IntPtr dwExtraInfo;
+            }
+
+            [StructLayout(LayoutKind.Sequential)]
+            public struct INPUT {
+                public uint type;
+                public MOUSEINPUT mi;
+            }
+
+            [DllImport("user32.dll", SetLastError = true)]
+            public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+            public const int INPUT_MOUSE = 0;
+            public const int MOUSEEVENTF_MOVE = 0x0001;
+        }
+"@
+
+        $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
+
+        while ((Get-Date) -lt $endTime) {
+            # Randomly select a method from the provided methods
+            $method = $Methods | Get-Random
+
+            switch ($method) {
+                'MouseSoftware' {
+                    # Move mouse using software method
+                    $currentPos = [System.Windows.Forms.Cursor]::Position
+                    $xOffset = Get-Random -Minimum -10 -Maximum 11
+                    $yOffset = Get-Random -Minimum -10 -Maximum 11
+                    $newPos = [System.Drawing.Point]::new($currentPos.X + $xOffset, $currentPos.Y + $yOffset)
+                    [System.Windows.Forms.Cursor]::Position = $newPos
+
+                    # Move back to original position after a short delay to minimize disruption
+                    Start-Sleep -Milliseconds 100
+                    [System.Windows.Forms.Cursor]::Position = $currentPos
+                }
+                'MouseHardware' {
+                    # Use hardware-level mouse movement
+                    $input = New-Object MouseSimulator+INPUT
+                    $input.type = [MouseSimulator]::INPUT_MOUSE
+                    $input.mi.dx = Get-Random -Minimum -5 -Maximum 6
+                    $input.mi.dy = Get-Random -Minimum -5 -Maximum 6
+                    $input.mi.dwFlags = [MouseSimulator]::MOUSEEVENTF_MOVE
+                    $inputs = @($input)
+                    [MouseSimulator]::SendInput(1, $inputs, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT]))
+                }
+                'Keyboard' {
+                    # Press a non-disruptive key (F15 is rarely used)
+                    [System.Windows.Forms.SendKeys]::SendWait("{F15}")
+                }
+                'SystemAPI' {
+                    # Directly tell Windows to stay awake
+                    [DisplayState]::SetThreadExecutionState(
+                        [DisplayState]::ES_CONTINUOUS -bor
+                        [DisplayState]::ES_SYSTEM_REQUIRED -bor
+                        [DisplayState]::ES_DISPLAY_REQUIRED)
+                }
+            }
+
+            # Wait for the specified interval
+            Start-Sleep -Milliseconds $Interval
+        }
+
+        # Reset execution state if we used the API
+        if ($Methods -contains 'SystemAPI') {
+            [DisplayState]::SetThreadExecutionState([DisplayState]::ES_CONTINUOUS)
+        }
+    } -ArgumentList $Interval, $Methods, $Duration, $startTime
+
+    if ($Duration -gt 0) {
+        Write-Host "PSMouseJiggler KeepAwake will run for $Duration seconds" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "PSMouseJiggler KeepAwake is running indefinitely. Use Stop-PSMouseJiggler to stop." -ForegroundColor Yellow
+    }
+}
+
+#endregion
+
+
+
 # Module cleanup when module is removed
 $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
     if ($script:JigglingActive) {
@@ -811,5 +1200,10 @@ Export-ModuleMember -Function @(
     'New-ScheduledTask',
     'Remove-ScheduledTask',
     'Start-ScheduledTask',
-    'Stop-ScheduledTask'
+    'Stop-ScheduledTask',
+    # New functions
+    'Prevent-SystemIdle',
+    'Send-KeyboardInput',
+    'Send-MouseInput',
+    'Start-KeepAwake'
 )
