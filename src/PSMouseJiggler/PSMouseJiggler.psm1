@@ -855,7 +855,6 @@ function Stop-ScheduledTask {
 
 #endregion
 
-# ...existing code...
 
 #region Advanced Wake Prevention Functions
 
