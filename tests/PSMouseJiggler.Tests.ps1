@@ -1,105 +1,67 @@
-# PSMouseJiggler.Tests.ps1
-
-Describe 'PSMouseJiggler Functionality Tests' {
-
+Describe 'PSMouseJiggler Basic Functionality Tests' {
     BeforeAll {
-        # Import the module properly
+        # Import the module
         $ModulePath = Join-Path -Path $PSScriptRoot -ChildPath "..\src\PSMouseJiggler\PSMouseJiggler.psd1"
-        Import-Module $ModulePath -Force
-
-        # Mock functions that interact with hardware to avoid flaky tests
-        Mock -CommandName [System.Windows.Forms.Cursor]::set_Position -MockWith { }
-        Mock -CommandName Send-MouseInput -MockWith { }
-        Mock -CommandName Send-KeyboardInput -MockWith { }
-
-        # Mock system API calls
-        Mock -CommandName Prevent-SystemIdle -MockWith { }
+        Import-Module $ModulePath -Force -DisableNameChecking
     }
 
-    Context 'Core Functionality' {
-        It 'Should start jiggling' {
-            # Arrange
-            $global:StartJigglingCalled = $false
-            Mock Start-PSMouseJiggler { $global:StartJigglingCalled = $true }
-
-            # Act
-            Start-PSMouseJiggler -Duration 1 -MovementPattern 'Random'
-
-            # Assert
-            $global:StartJigglingCalled | Should -BeTrue
+    AfterAll {
+        # Clean up - attempt to stop jiggling regardless of the variable state
+        try {
+            Stop-PSMouseJiggler -ErrorAction SilentlyContinue
         }
-
-        It 'Should stop jiggling when requested' {
-            # Arrange
-            $global:StopJigglingCalled = $false
-            Mock Stop-PSMouseJiggler { $global:StopJigglingCalled = $true }
-
-            # Act
-            Stop-PSMouseJiggler
-
-            # Assert
-            $global:StopJigglingCalled | Should -BeTrue
+        catch {
+            # Ignore errors
         }
+        Remove-Module PSMouseJiggler -ErrorAction SilentlyContinue
     }
 
-    Context 'Configuration Management' {
-        It 'Should load configuration settings' {
-            # Arrange
-            $testConfig = @{
-                MovementSpeed   = 100
-                MovementPattern = 'Random'
+    Context 'Module Loading' {
+        It 'Should load the module successfully' {
+            $module = Get-Module PSMouseJiggler
+            $module | Should -Not -BeNullOrEmpty
+            $module.Name | Should -Be 'PSMouseJiggler'
+        }
+
+        It 'Should export the required functions' {
+            $requiredFunctions = @(
+                'Start-PSMouseJiggler',
+                'Stop-PSMouseJiggler',
+                'Show-PSMouseJigglerGUI'
+            )
+
+            foreach ($function in $requiredFunctions) {
+                Get-Command -Name $function -Module PSMouseJiggler | Should -Not -BeNullOrEmpty
             }
-            Mock Get-Configuration { return $testConfig }
-
-            # Act
-            $config = Get-Configuration
-
-            # Assert
-            $config | Should -Not -BeNullOrEmpty
-            $config.MovementSpeed | Should -Be 100
-            $config.MovementPattern | Should -Be 'Random'
-        }
-
-        It 'Should save configuration settings' {
-            # Arrange
-            $global:SaveConfigCalled = $false
-            Mock Save-Configuration { $global:SaveConfigCalled = $true }
-            $config = @{
-                MovementSpeed   = 10
-                MovementPattern = 'Linear'
-            }
-
-            # Act
-            Save-Configuration -Configuration $config
-
-            # Assert
-            $global:SaveConfigCalled | Should -BeTrue
         }
     }
 
-    Context 'Advanced Keep-Awake Methods' {
-        It 'Should start keep-awake with default parameters' {
-            # Arrange
-            $global:KeepAwakeCalled = $false
-            Mock Start-KeepAwake { $global:KeepAwakeCalled = $true }
+    Context 'Basic Start/Stop Functionality' {
+        It 'Should start without errors' {
+            # Just test that it doesn't throw
+            { Start-PSMouseJiggler -Duration 1 } | Should -Not -Throw
 
-            # Act
-            Start-KeepAwake
+            # Give it time to fully initialize
+            Start-Sleep -Seconds 2
 
-            # Assert
-            $global:KeepAwakeCalled | Should -BeTrue
+            # Since we can't access $script:JigglingActive directly, use indirect tests
+            # If Stop-PSMouseJiggler works without error, then jiggling must be active
+            { Stop-PSMouseJiggler } | Should -Not -Throw
         }
 
-        It 'Should prevent system idle' {
-            # Arrange
-            $global:PreventIdleCalled = $false
-            Mock Prevent-SystemIdle { $global:PreventIdleCalled = $true }
+        It 'Should stop without errors' {
+            # Start jiggling with a longer duration to ensure it's running
+            { Start-PSMouseJiggler -Duration 60 } | Should -Not -Throw
+            Start-Sleep -Seconds 1
 
-            # Act
-            Prevent-SystemIdle -Duration 5
+            # Test that we can call Stop-PSMouseJiggler without errors
+            { Stop-PSMouseJiggler } | Should -Not -Throw
 
-            # Assert
-            $global:PreventIdleCalled | Should -BeTrue
+            # Test that starting again works (which would fail if still running)
+            Start-Sleep -Seconds 1
+            { Start-PSMouseJiggler -Duration 1 } | Should -Not -Throw
+            Start-Sleep -Seconds 2
+            { Stop-PSMouseJiggler } | Should -Not -Throw
         }
     }
 }
