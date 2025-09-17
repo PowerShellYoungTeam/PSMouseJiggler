@@ -7,45 +7,45 @@ on:
 
 jobs:
   publish:
-    name: Publish to Powershell Gallery
+    name: Publish to PowerShell Gallery
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Install dependencies
         shell: pwsh
         run: |
-          Install-Module -Name Pester -Force -SkipPublisherCheck
-          Install-Module -Name PowerShellGet -Force -AllowClobber
-          Install-Module -Name PSScriptAnalyzer -Force -AllowClobber
+          Install-Module -Name Pester -Force -SkipPublisherCheck -MinimumVersion 5.0.0
+          Install-Module -Name PSScriptAnalyzer -Force
 
       - name: Run tests
         shell: pwsh
         run: |
-          Invoke-Pester -Script tests/PSMouseJiggler.Module.Tests.ps1
+          $config = New-PesterConfiguration
+          $config.Run.Path = ".\tests"
+          $config.Run.PassThru = $true
+          $results = Invoke-Pester -Configuration $config
+          if ($results.FailedCount -gt 0) {
+            throw "Pester tests failed"
+          }
 
       - name: Validate Module Manifest
         shell: pwsh
         run: |
-          Test-ModuleManifest -Path src/PSMouseJiggler/PSMouseJiggler.psd1
+          $manifest = Test-ModuleManifest -Path .\src\PSMouseJiggler\PSMouseJiggler.psd1 -ErrorAction Stop
+          $manifest | Format-List
 
       - name: Run PSScriptAnalyzer
         shell: pwsh
         run: |
-          Install-Module -Name PSScriptAnalyzer -Force -AllowClobber
-          Invoke-ScriptAnalyzer -Path src/PSMouseJiggler -Recurse -Severity Warning,Error
+          $results = Invoke-ScriptAnalyzer -Path .\src -Recurse -Severity Error
+          $results | Format-Table
+          if ($results) { throw "PSScriptAnalyzer found $($results.Count) errors" }
 
       - name: Publish to PowerShell Gallery
         shell: pwsh
-        env:
-          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
         run: |
-          # Get version from module manifest
-          $manifest = Test-ModuleManifest -Path src/PSMouseJiggler/PSMouseJiggler.psd1
-          $version = $manifest.Version
-          Write-Host "Publishing PSMouseJiggler version $version to PowerShell Gallery"
-
-          # Publish the module
-          $modulePath = "src\PSMouseJiggler"
-          Publish-Module -Path $modulePath -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -Force
+          $modulePath = Join-Path $PWD "src\PSMouseJiggler"
+          Publish-Module -Path $modulePath -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose
