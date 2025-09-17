@@ -7,7 +7,7 @@
     RootModule             = 'PSMouseJiggler.psm1'
 
     # Version number of this module.
-    ModuleVersion          = '1.0.0'
+    ModuleVersion          = '1.0.2'
 
     # Supported PSEditions
     CompatiblePSEditions   = @('Desktop', 'Core')
@@ -81,7 +81,11 @@
         'New-ScheduledTask',
         'Remove-ScheduledTask',
         'Start-ScheduledTask',
-        'Stop-ScheduledTask'
+        'Stop-ScheduledTask',
+        'Prevent-SystemIdle',
+        'Send-KeyboardInput',
+        'Send-MouseInput',
+        'Start-KeepAwake'
     )
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
@@ -119,13 +123,16 @@
 
             # ReleaseNotes of this module
             ReleaseNotes             = @'
-Version 1.0.0
-- Initial release of PSMouseJiggler module
-- Mouse movement simulation with configurable patterns
-- GUI interface for easy operation
-- Configuration management
-- Scheduled task support
-- PowerShell Gallery ready
+Version 1.0.2
+- Added advanced keep-awake methods: combines mouse, keyboard, and system API techniques for reliable anti-idle functionality
+- Introduced hardware-level input simulation for broader compatibility with strict power management
+- New API functions: Prevent-SystemIdle, Send-KeyboardInput, Send-MouseInput, Start-KeepAwake for custom automation and integration
+- Updated GUI layout: supports advanced keep-awake options and method selection
+- Enhanced configuration management: improved loading, saving, and updating of user preferences
+- Improved scheduled task support for automated jiggling
+- Fixed variable naming to avoid PowerShell built-in conflicts
+- Minor bug fixes and usability improvements
+- Ready for PowerShell Gallery distribution
 '@
 
             # Prerelease string of this module

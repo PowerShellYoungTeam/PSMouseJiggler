@@ -33,12 +33,17 @@ Show-PSMouseJigglerGUI
 
 ## Features
 
-- **Mouse Movement Simulation**: Simulates mouse movements to keep your computer awake
-- **Multiple Movement Patterns**: Random, Horizontal, Vertical, and Circular patterns
-- **GUI Interface**: User-friendly graphical interface for easy control
-- **Configurable Settings**: Customizable intervals, patterns, and duration
-- **Scheduled Tasks**: Create and manage scheduled jiggling tasks
-- **PowerShell Gallery Ready**: Properly structured module with manifest
+- **Mouse Movement Simulation**: Simulates mouse movements to keep your computer awake.
+- **Graphical User Interface**: A user-friendly GUI to start/stop jiggling and configure settings.
+- **Custom Movement Patterns**: Choose from various predefined movement patterns for the mouse.
+- **Advanced Keep-Awake Methods**: Multiple techniques to prevent sleep, including:
+  - Hardware-level input simulation
+  - Keyboard activity simulation
+  - Direct Windows API calls
+- **Scheduled Jiggling**: Set up automatic jiggling at specified times using scheduled tasks.
+- **Configuration Management**: Load and save user preferences for a personalized experience.
+- **PowerShell Module**: Properly structured as a PowerShell module for easy installation and management.
+- **Testing Framework**: Includes unit tests to ensure core functionalities work as expected.
 
 ## Available Commands
 

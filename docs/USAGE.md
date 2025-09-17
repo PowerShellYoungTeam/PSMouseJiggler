@@ -99,6 +99,25 @@ Get-ScheduledTasks
 Remove-ScheduledTask -TaskName "MorningJiggler"
 ```
 
+## Advanced Keep-Awake Methods
+
+PSMouseJiggler now includes advanced methods to prevent system sleep and screensaver activation, using multiple techniques:
+
+### Using the Advanced Keep-Awake Feature
+
+```powershell
+# Keep system awake using all available methods
+Start-KeepAwake
+
+# Keep system awake for a specific duration (in seconds)
+Start-KeepAwake -Duration 3600  # Run for 1 hour
+
+# Specify which methods to use
+Start-KeepAwake -Methods 'MouseHardware', 'SystemAPI'
+
+# Customize the interval between actions (in milliseconds)
+Start-KeepAwake -Interval 60000  # Perform actions every minute
+
 ## Troubleshooting
 
 If you encounter issues, ensure that you have the necessary permissions to run PowerShell scripts. You may need to adjust your execution policy:
