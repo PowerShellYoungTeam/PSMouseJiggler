@@ -46,6 +46,8 @@ jobs:
 
       - name: Publish to PowerShell Gallery
         shell: pwsh
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
         run: |
           $modulePath = Join-Path $PWD "src\PSMouseJiggler"
           Publish-Module -Path $modulePath -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose
