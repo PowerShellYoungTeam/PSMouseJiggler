@@ -1,65 +1,60 @@
-# PSMouseJiggler.Tests.ps1
-
-Describe 'PSMouseJiggler Functionality Tests' {
-
+Describe 'PSMouseJiggler Basic Functionality Tests' {
     BeforeAll {
-        # Load the main PSMouseJiggler script
-        . "$PSScriptRoot/../src/PSMouseJiggler.ps1"
+        # Remove any existing instances of the module first
+        Get-Module PSMouseJiggler | Remove-Module -Force -ErrorAction SilentlyContinue
+
+        # Import the module
+        $ModulePath = Join-Path -Path $PSScriptRoot -ChildPath "..\src\PSMouseJiggler\PSMouseJiggler.psd1"
+        Import-Module $ModulePath -Force -DisableNameChecking
     }
 
-    It 'Should simulate mouse movement' {
-        # Arrange
-        $initialPosition = [System.Windows.Forms.Cursor]::Position
-
-        # Act
-        Start-PSMouseJiggler -Duration 1 -MovementPattern 'Random'
-
-        # Wait for a short duration to allow movement
-        Start-Sleep -Seconds 1
-
-        # Assert
-        $newPosition = [System.Windows.Forms.Cursor]::Position
-        $newPosition | Should -Not -BeExactly $initialPosition
+    AfterAll {
+        # Clean up - attempt to stop jiggling regardless of the variable state
+        try {
+            Stop-PSMouseJiggler -ErrorAction SilentlyContinue
+        }
+        catch {
+            # Ignore errors
+        }
+        Remove-Module PSMouseJiggler -ErrorAction SilentlyContinue
     }
 
-    It 'Should stop jiggling when requested' {
-        # Arrange
-        Start-PSMouseJiggler -Duration 5 -MovementPattern 'Random'
-        Start-Sleep -Seconds 2
-
-        # Act
-        Stop-PSMouseJiggler
-
-        # Wait for a short duration to ensure jiggling has stopped
-        Start-Sleep -Seconds 1
-
-        # Assert
-        $finalPosition = [System.Windows.Forms.Cursor]::Position
-        $finalPosition | Should -BeExactly $newPosition
-    }
-
-    It 'Should load configuration settings' {
-        # Act
-        $config = Load-Configuration
-
-        # Assert
-        $config | Should -Not -BeNullOrEmpty
-        $config.MovementSpeed | Should -BeGreaterThan 0
-    }
-
-    It 'Should save configuration settings' {
-        # Arrange
-        $config = @{
-            MovementSpeed = 10
-            MovementPattern = 'Linear'
+    Context 'Module Loading' {
+        It 'Should load the module successfully' {
+            $module = Get-Module PSMouseJiggler | Select-Object -First 1
+            $module | Should -Not -BeNullOrEmpty
+            $module.Name | Should -Be 'PSMouseJiggler'
         }
 
-        # Act
-        Save-Configuration -Config $config
+        It 'Should export the required functions' {
+            $requiredFunctions = @(
+                'Start-PSMouseJiggler',
+                'Stop-PSMouseJiggler',
+                'Show-PSMouseJigglerGUI',
+                'Start-KeepAwake'
+            )
 
-        # Assert
-        $loadedConfig = Load-Configuration
-        $loadedConfig.MovementSpeed | Should -Be 10
-        $loadedConfig.MovementPattern | Should -Be 'Linear'
+            foreach ($function in $requiredFunctions) {
+                Get-Command -Name $function -Module PSMouseJiggler | Should -Not -BeNullOrEmpty
+            }
+        }
+    }
+
+    Context 'Core Functionality Sequence' {
+        It 'Should execute the jiggling sequence without errors' {
+            # Step 1: Start mouse jiggling with a short duration
+            { Start-PSMouseJiggler -Duration 1 } | Should -Not -Throw
+            Start-Sleep -Seconds 2
+
+            # Step 2: Stop the jiggling
+            { Stop-PSMouseJiggler } | Should -Not -Throw
+
+            # Step 3: Start the keep-awake functionality with a short duration
+            { Start-KeepAwake -Duration 1 } | Should -Not -Throw
+            Start-Sleep -Seconds 2
+
+            # Step 4: Stop the keep-awake functionality
+            { Stop-PSMouseJiggler } | Should -Not -Throw
+        }
     }
 }

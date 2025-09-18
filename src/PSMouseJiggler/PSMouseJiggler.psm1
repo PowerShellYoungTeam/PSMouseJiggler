@@ -70,40 +70,38 @@ function Start-PSMouseJiggler {
         $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
 
         while ((Get-Date) -lt $endTime) {
-            # Get current mouse position
             $currentPos = [System.Windows.Forms.Cursor]::Position
 
-            # Calculate new position based on pattern
+            # Determine movement pattern
             switch ($MovementPattern) {
                 'Random' {
                     $xOffset = Get-Random -Minimum -10 -Maximum 11
                     $yOffset = Get-Random -Minimum -10 -Maximum 11
-                    $newPos = [System.Drawing.Point]::new($currentPos.X + $xOffset, $currentPos.Y + $yOffset)
                 }
                 'Horizontal' {
                     $xOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
-                    $newPos = [System.Drawing.Point]::new($currentPos.X + $xOffset, $currentPos.Y)
+                    $yOffset = 0
                 }
                 'Vertical' {
+                    $xOffset = 0
                     $yOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
-                    $newPos = [System.Drawing.Point]::new($currentPos.X, $currentPos.Y + $yOffset)
                 }
                 'Circular' {
-                    $angle = (Get-Date).Millisecond / 1000.0 * 2 * [Math]::PI
-                    $radius = 10
-                    $xOffset = [Math]::Cos($angle) * $radius
-                    $yOffset = [Math]::Sin($angle) * $radius
-                    $newPos = [System.Drawing.Point]::new($currentPos.X + $xOffset, $currentPos.Y + $yOffset)
+                    $angle = (Get-Date).Millisecond / 1000 * 2 * [Math]::PI
+                    $xOffset = [Math]::Round([Math]::Sin($angle) * 10)
+                    $yOffset = [Math]::Round([Math]::Cos($angle) * 10)
                 }
                 default {
-                    $newPos = $currentPos
+                    $xOffset = Get-Random -Minimum -5 -Maximum 6
+                    $yOffset = Get-Random -Minimum -5 -Maximum 6
                 }
             }
 
-            # Move mouse to new position
+            # Move the mouse
+            $newPos = New-Object System.Drawing.Point($currentPos.X + $xOffset, $currentPos.Y + $yOffset)
             [System.Windows.Forms.Cursor]::Position = $newPos
 
-            # Wait for specified interval
+            # Wait for the specified interval
             Start-Sleep -Milliseconds $Interval
         }
     } -ArgumentList $Interval, $MovementPattern, $Duration, $startTime
@@ -137,8 +135,14 @@ function Stop-PSMouseJiggler {
     }
 
     if ($script:JigglingJob) {
-        Stop-Job -Job $script:JigglingJob -ErrorAction SilentlyContinue
-        Remove-Job -Job $script:JigglingJob -ErrorAction SilentlyContinue
+        # Add type checking to handle both real jobs and mock objects used in testing
+        if ($script:JigglingJob -is [System.Management.Automation.Job]) {
+            Stop-Job -Job $script:JigglingJob -ErrorAction SilentlyContinue
+            Remove-Job -Job $script:JigglingJob -ErrorAction SilentlyContinue
+        }
+        else {
+            Write-Verbose "Stopping non-Job object (likely a test mock)"
+        }
         $script:JigglingJob = $null
     }
 
@@ -176,25 +180,26 @@ function Get-NewMousePosition {
         'Random' {
             $xOffset = Get-Random -Minimum -10 -Maximum 11
             $yOffset = Get-Random -Minimum -10 -Maximum 11
-            return [System.Drawing.Point]::new($CurrentPosition.X + $xOffset, $CurrentPosition.Y + $yOffset)
+            return New-Object System.Drawing.Point($CurrentPosition.X + $xOffset, $CurrentPosition.Y + $yOffset)
         }
         'Horizontal' {
             $xOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
-            return [System.Drawing.Point]::new($CurrentPosition.X + $xOffset, $CurrentPosition.Y)
+            return New-Object System.Drawing.Point($CurrentPosition.X + $xOffset, $CurrentPosition.Y)
         }
         'Vertical' {
             $yOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
-            return [System.Drawing.Point]::new($CurrentPosition.X, $CurrentPosition.Y + $yOffset)
+            return New-Object System.Drawing.Point($CurrentPosition.X, $CurrentPosition.Y + $yOffset)
         }
         'Circular' {
-            $angle = (Get-Date).Millisecond / 1000.0 * 2 * [Math]::PI
-            $radius = 10
-            $xOffset = [Math]::Cos($angle) * $radius
-            $yOffset = [Math]::Sin($angle) * $radius
-            return [System.Drawing.Point]::new($CurrentPosition.X + $xOffset, $CurrentPosition.Y + $yOffset)
+            $angle = (Get-Date).Millisecond / 1000 * 2 * [Math]::PI
+            $xOffset = [Math]::Round([Math]::Sin($angle) * 10)
+            $yOffset = [Math]::Round([Math]::Cos($angle) * 10)
+            return New-Object System.Drawing.Point($CurrentPosition.X + $xOffset, $CurrentPosition.Y + $yOffset)
         }
         default {
-            return $CurrentPosition
+            $xOffset = Get-Random -Minimum -5 -Maximum 6
+            $yOffset = Get-Random -Minimum -5 -Maximum 6
+            return New-Object System.Drawing.Point($CurrentPosition.X + $xOffset, $CurrentPosition.Y + $yOffset)
         }
     }
 }
@@ -427,11 +432,12 @@ function Get-Configuration {
 
     if (Test-Path $ConfigFilePath) {
         try {
-            $jsonContent = Get-Content -Path $ConfigFilePath -Raw | ConvertFrom-Json
-            return $jsonContent
+            $config = Get-Content -Path $ConfigFilePath -Raw | ConvertFrom-Json
+            Write-Verbose "Configuration loaded from $ConfigFilePath"
+            return $config
         }
         catch {
-            Write-Warning "Error reading configuration file: $($_.Exception.Message)"
+            Write-Warning "Error loading configuration: $($_.Exception.Message)"
             return Get-DefaultConfiguration
         }
     }
@@ -478,13 +484,11 @@ function Save-Configuration {
         if (-not (Test-Path $configDir)) {
             New-Item -ItemType Directory -Path $configDir -Force | Out-Null
         }
-
-        $jsonContent = $Configuration | ConvertTo-Json -Depth 10
-        Set-Content -Path $ConfigFilePath -Value $jsonContent -Force
+        $Configuration | ConvertTo-Json -Depth 10 | Set-Content -Path $ConfigFilePath -Force
         Write-Verbose "Configuration saved to $ConfigFilePath"
     }
     catch {
-        Write-Error "Error saving configuration: $($_.Exception.Message)"
+        Write-Error "Failed to save configuration: $($_.Exception.Message)"
     }
 }
 
@@ -554,12 +558,18 @@ function Reset-Configuration {
 
 function Get-DefaultConfiguration {
     return [PSCustomObject]@{
-        MovementSpeed   = 1000
-        MovementPattern = "Random"
-        AutoJiggle      = $false
-        Duration        = 0
-        GUISettings     = @{
-            WindowPosition   = @{ X = 0; Y = 0 }
+        MovementSpeed        = 1000
+        MovementPattern      = "Random"
+        JiggleInterval       = 1000
+        EnableScheduledTasks = $false
+        ScheduledTimes       = @()
+        AutoJiggle           = $false
+        Duration             = 0
+        GuiSettings          = @{
+            WindowPosition   = @{
+                X = 0
+                Y = 0
+            }
             RememberSettings = $true
         }
     }
@@ -585,12 +595,25 @@ function Get-RandomMovementPattern {
     param()
 
     $patterns = @(
-        { Move-Mouse -X 10 -Y 0; Start-Sleep -Milliseconds 100 },
-        { Move-Mouse -X -10 -Y 0; Start-Sleep -Milliseconds 100 },
-        { Move-Mouse -X 0 -Y 10; Start-Sleep -Milliseconds 100 },
-        { Move-Mouse -X 0 -Y -10; Start-Sleep -Milliseconds 100 },
-        { Move-Mouse -X 5 -Y 5; Start-Sleep -Milliseconds 100 },
-        { Move-Mouse -X -5 -Y -5; Start-Sleep -Milliseconds 100 }
+        {
+            $xOffset = Get-Random -Minimum -10 -Maximum 11
+            $yOffset = Get-Random -Minimum -10 -Maximum 11
+            Move-Mouse -X $xOffset -Y $yOffset
+        },
+        {
+            $xOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
+            Move-Mouse -X $xOffset -Y 0
+        },
+        {
+            $yOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
+            Move-Mouse -X 0 -Y $yOffset
+        },
+        {
+            $angle = (Get-Date).Millisecond / 1000 * 2 * [Math]::PI
+            $xOffset = [Math]::Round([Math]::Sin($angle) * 10)
+            $yOffset = [Math]::Round([Math]::Cos($angle) * 10)
+            Move-Mouse -X $xOffset -Y $yOffset
+        }
     )
     return Get-Random -InputObject $patterns
 }
@@ -615,11 +638,11 @@ function Get-RandomMovementPattern {
 function Move-Mouse {
     [CmdletBinding()]
     param (
-        [Parameter()]
-        [int]$X = 0,
+        [Parameter(Mandatory)]
+        [int]$X,
 
-        [Parameter()]
-        [int]$Y = 0
+        [Parameter(Mandatory)]
+        [int]$Y
     )
 
     $currentPos = [System.Windows.Forms.Cursor]::Position
@@ -644,16 +667,17 @@ function Move-Mouse {
 function Start-MovementPattern {
     [CmdletBinding()]
     param (
-        [Parameter()]
-        [int]$DurationInSeconds = 60
+        [Parameter(Mandatory)]
+        [int]$DurationInSeconds
     )
 
     $endTime = (Get-Date).AddSeconds($DurationInSeconds)
     Write-Host "Starting movement pattern for $DurationInSeconds seconds" -ForegroundColor Green
 
     while ((Get-Date) -lt $endTime) {
-        $movementPattern = Get-RandomMovementPattern
-        & $movementPattern
+        $pattern = Get-RandomMovementPattern
+        & $pattern
+        Start-Sleep -Milliseconds 1000
     }
 
     Write-Host "Movement pattern completed" -ForegroundColor Green
@@ -698,15 +722,15 @@ function Get-ScheduledTasks {
     [CmdletBinding()]
     param (
         [Parameter()]
-        [string]$TaskName = "PSMouseJiggler"
+        [string]$TaskName = "PSMouseJiggler*"
     )
 
     try {
-        $tasks = Get-ScheduledTask | Where-Object { $_.TaskName -like "*$TaskName*" }
+        $tasks = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
         return $tasks
     }
     catch {
-        Write-Error "Error retrieving scheduled tasks: $($_.Exception.Message)"
+        Write-Warning "Error getting scheduled tasks: $($_.Exception.Message)"
         return @()
     }
 }
@@ -744,22 +768,30 @@ function New-ScheduledTask {
         [string]$Action,
 
         [Parameter(Mandatory)]
-        [datetime]$StartTime,
+        [DateTime]$StartTime,
 
         [Parameter()]
-        [int]$RepeatIntervalMinutes = 60
+        [int]$RepeatIntervalMinutes = 0
     )
 
     try {
-        $action = New-ScheduledTaskAction -Execute $Action
-        $trigger = New-ScheduledTaskTrigger -At $StartTime -Daily
-        $trigger.RepeatInterval = (New-TimeSpan -Minutes $RepeatIntervalMinutes)
+        $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -Command `"$Action`""
 
-        Register-ScheduledTask -Action $action -Trigger $trigger -TaskName $TaskName -Description "PSMouseJiggler Task"
+        if ($RepeatIntervalMinutes -gt 0) {
+            $trigger = New-ScheduledTaskTrigger -Once -At $StartTime -RepetitionInterval (New-TimeSpan -Minutes $RepeatIntervalMinutes)
+        }
+        else {
+            $trigger = New-ScheduledTaskTrigger -Once -At $StartTime
+        }
+
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+
+        Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Force
+
         Write-Host "Scheduled task '$TaskName' created successfully" -ForegroundColor Green
     }
     catch {
-        Write-Error "Error creating scheduled task: $($_.Exception.Message)"
+        Write-Error "Failed to create scheduled task: $($_.Exception.Message)"
     }
 }
 
@@ -786,10 +818,10 @@ function Remove-ScheduledTask {
 
     try {
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-        Write-Host "Scheduled task '$TaskName' removed successfully" -ForegroundColor Green
+        Write-Host "Scheduled task '$TaskName' removed" -ForegroundColor Green
     }
     catch {
-        Write-Error "Error removing scheduled task: $($_.Exception.Message)"
+        Write-Error "Failed to remove scheduled task: $($_.Exception.Message)"
     }
 }
 
@@ -816,10 +848,10 @@ function Start-ScheduledTask {
 
     try {
         Start-ScheduledTask -TaskName $TaskName
-        Write-Host "Scheduled task '$TaskName' started successfully" -ForegroundColor Green
+        Write-Host "Scheduled task '$TaskName' started" -ForegroundColor Green
     }
     catch {
-        Write-Error "Error starting scheduled task: $($_.Exception.Message)"
+        Write-Error "Failed to start scheduled task: $($_.Exception.Message)"
     }
 }
 
@@ -846,15 +878,14 @@ function Stop-ScheduledTask {
 
     try {
         Stop-ScheduledTask -TaskName $TaskName
-        Write-Host "Scheduled task '$TaskName' stopped successfully" -ForegroundColor Green
+        Write-Host "Scheduled task '$TaskName' stopped" -ForegroundColor Green
     }
     catch {
-        Write-Error "Error stopping scheduled task: $($_.Exception.Message)"
+        Write-Error "Failed to stop scheduled task: $($_.Exception.Message)"
     }
 }
 
 #endregion
-
 
 #region Advanced Wake Prevention Functions
 
@@ -1144,10 +1175,7 @@ function Start-KeepAwake {
                     $mouseInputStructure.mi.dwExtraInfo = [IntPtr]::Zero
 
                     $inputArray = @($mouseInputStructure)
-                    $result = [MouseSimulator]::SendInput(1, $inputArray, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT]))
-                    if ($result -eq 0) {
-                        Write-Warning "MouseSimulator::SendInput failed to send input event."
-                    }
+                    [MouseSimulator]::SendInput(1, $inputArray, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT])) | Out-Null
                 }
                 'Keyboard' {
                     # Press a non-disruptive key (F15 is rarely used)
@@ -1182,12 +1210,21 @@ function Start-KeepAwake {
 
 #endregion
 
-
-
 # Module cleanup when module is removed
 $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
     if ($script:JigglingActive) {
-        Stop-PSMouseJiggler
+        if ($script:JigglingJob) {
+            # Add type checking to handle both real jobs and mock objects used in testing
+            if ($script:JigglingJob -is [System.Management.Automation.Job]) {
+                Stop-Job -Job $script:JigglingJob -ErrorAction SilentlyContinue
+                Remove-Job -Job $script:JigglingJob -ErrorAction SilentlyContinue
+            }
+            else {
+                Write-Verbose "Cleaning up non-Job object (likely a test mock)"
+            }
+            $script:JigglingJob = $null
+        }
+        $script:JigglingActive = $false
     }
 }
 

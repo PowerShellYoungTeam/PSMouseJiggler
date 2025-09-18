@@ -2,33 +2,98 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
+   # branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build:
+  test-windows-powershell:
+    name: Windows PowerShell 5.1
     runs-on: windows-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Install Pester
+      - name: Install Pester and PSScriptAnalyzer
+        shell: powershell
+        run: |
+          Install-Module -Name Pester -Force -Scope CurrentUser -MinimumVersion 5.0.0
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+
+      - name: Run PSScriptAnalyzer
+        shell: powershell
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path .\src -Recurse -Severity Error
+          $results | Format-Table
+          if ($results) { throw "PSScriptAnalyzer found $($results.Count) errors" }
+
+      - name: Validate Module Manifest
+        shell: powershell
+        run: |
+          $manifest = Test-ModuleManifest -Path .\src\PSMouseJiggler\PSMouseJiggler.psd1 -ErrorAction Stop
+          $manifest | Format-List
+
+      - name: Run Pester Tests
+        shell: powershell
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = ".\tests"
+          $config.Run.PassThru = $true
+          $config.Output.Verbosity = "Detailed"
+          $results = Invoke-Pester -Configuration $config
+          if ($results.FailedCount -gt 0) {
+            throw "Pester tests failed"
+          }
+
+  test-pwsh-core:
+    name: PowerShell Core
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Pester and PSScriptAnalyzer
         shell: pwsh
         run: |
-          Install-Module -Name Pester -Force -SkipPublisherCheck
+          Install-Module -Name Pester -Force -Scope CurrentUser -MinimumVersion 5.0.0
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path .\src -Recurse -Severity Error
+          $results | Format-Table
+          if ($results) { throw "PSScriptAnalyzer found $($results.Count) errors" }
+
+      - name: Validate Module Manifest
+        shell: pwsh
+        run: |
+          $manifest = Test-ModuleManifest -Path .\src\PSMouseJiggler\PSMouseJiggler.psd1 -ErrorAction Stop
+          $manifest | Format-List
 
       - name: Run Pester Tests
         shell: pwsh
         run: |
-          Invoke-Pester -Script tests/PSMouseJiggler.Module.Tests.ps1 -OutputFormat NUnitXml -OutputFile tests/TestResults.xml
+          $config = New-PesterConfiguration
+          $config.Run.Path = ".\tests"
+          $config.Run.PassThru = $true
+          $config.Output.Verbosity = "Detailed"
+          $results = Invoke-Pester -Configuration $config
+          if ($results.FailedCount -gt 0) {
+            throw "Pester tests failed"
+          }
 
-      - name: Build PSMouseJiggler Module
+  build:
+    name: Build Module
+    needs: [test-windows-powershell, test-pwsh-core]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Module Package
         shell: pwsh
         run: |
-          # Validate module manifest
-          Test-ModuleManifest -Path src/PSMouseJiggler/PSMouseJiggler.psd1
-          Write-Host "PSMouseJiggler module manifest is valid" -ForegroundColor Green
+          New-Item -Path .\build -ItemType Directory -Force
+          Copy-Item -Path .\src\PSMouseJiggler -Destination .\build\PSMouseJiggler -Recurse
