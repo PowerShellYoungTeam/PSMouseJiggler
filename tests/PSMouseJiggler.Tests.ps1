@@ -46,11 +46,14 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
             { Start-PSMouseJiggler -Duration 1 } | Should -Not -Throw
             Start-Sleep -Seconds 2
 
-            # Step 2: Start the keep-awake functionality with a short duration
+            # Step 2: Stop the jiggling
+            { Stop-PSMouseJiggler } | Should -Not -Throw
+
+            # Step 3: Start the keep-awake functionality with a short duration
             { Start-KeepAwake -Duration 1 } | Should -Not -Throw
             Start-Sleep -Seconds 2
 
-            # Step 3: Stop the jiggling
+            # Step 4: Stop the keep-awake functionality
             { Stop-PSMouseJiggler } | Should -Not -Throw
         }
     }
