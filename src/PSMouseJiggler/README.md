@@ -65,11 +65,11 @@ Show-PSMouseJigglerGUI
 - `Stop-MovementPattern` - Stop movement pattern
 
 ### Scheduled Task Functions
-- `Get-ScheduledTasks` - Get PSMouseJiggler scheduled tasks
-- `New-ScheduledTask` - Create new scheduled task
-- `Remove-ScheduledTask` - Remove scheduled task
-- `Start-ScheduledTask` - Start scheduled task
-- `Stop-ScheduledTask` - Stop scheduled task
+- `Get-PSMJScheduledTasks` - Get PSMouseJiggler scheduled tasks
+- `New-PSMJScheduledTask` - Create new scheduled task
+- `Remove-PSMJScheduledTask` - Remove scheduled task
+- `Start-PSMJScheduledTask` - Start scheduled task
+- `Stop-PSMJScheduledTask` - Stop scheduled task
 
 ## Examples
 
@@ -103,7 +103,7 @@ Reset-Configuration
 ### Scheduled Tasks
 ```powershell
 # Create a scheduled task to start jiggling at 9 AM daily
-New-ScheduledTask -TaskName "MorningJiggler" -Action "powershell.exe -Command 'Start-PSMouseJiggler -Duration 3600'" -StartTime (Get-Date "09:00")
+New-PSMJScheduledTask -TaskName "MorningJiggler" -Action "powershell.exe -Command 'Start-PSMouseJiggler -Duration 3600'" -StartTime (Get-Date "09:00")
 ```
 
 ## Requirements

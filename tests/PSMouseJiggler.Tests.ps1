@@ -30,7 +30,24 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
             $requiredFunctions = @(
                 'Start-PSMouseJiggler',
                 'Stop-PSMouseJiggler',
+                'Get-NewMousePosition',
                 'Show-PSMouseJigglerGUI',
+                'Get-Configuration',
+                'Save-Configuration',
+                'Update-Configuration',
+                'Reset-Configuration',
+                'Get-RandomMovementPattern',
+                'Move-Mouse',
+                'Start-MovementPattern',
+                'Stop-MovementPattern',
+                'Get-PSMJScheduledTasks',       # Updated name
+                'New-PSMJScheduledTask',        # Updated name
+                'Remove-PSMJScheduledTask',     # Updated name
+                'Start-PSMJScheduledTask',      # Updated name
+                'Stop-PSMJScheduledTask',       # Updated name
+                'Prevent-SystemIdle',
+                'Send-KeyboardInput',
+                'Send-MouseInput',
                 'Start-KeepAwake'
             )
 

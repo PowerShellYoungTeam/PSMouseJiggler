@@ -715,10 +715,10 @@ function Stop-MovementPattern {
     Name or pattern to search for in task names.
 
 .EXAMPLE
-    Get-ScheduledTasks -TaskName "PSMouseJiggler"
+    Get-PSMJScheduledTasks -TaskName "PSMouseJiggler"
     Gets all tasks with "PSMouseJiggler" in the name.
 #>
-function Get-ScheduledTasks {
+function Get-PSMJScheduledTasks {
     [CmdletBinding()]
     param (
         [Parameter()]
@@ -755,10 +755,10 @@ function Get-ScheduledTasks {
     How often to repeat the task in minutes.
 
 .EXAMPLE
-    New-ScheduledTask -TaskName "MyJiggler" -Action "powershell.exe -Command 'Start-PSMouseJiggler'" -StartTime (Get-Date).AddMinutes(5)
+    New-PSMJScheduledTask -TaskName "MyJiggler" -Action "powershell.exe -Command 'Start-PSMouseJiggler'" -StartTime (Get-Date).AddMinutes(5)
     Creates a task to start jiggling in 5 minutes.
 #>
-function New-ScheduledTask {
+function New-PSMJScheduledTask {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -806,10 +806,10 @@ function New-ScheduledTask {
     Name of the task to remove.
 
 .EXAMPLE
-    Remove-ScheduledTask -TaskName "MyJiggler"
+    Remove-PSMJScheduledTask -TaskName "MyJiggler"
     Removes the MyJiggler scheduled task.
 #>
-function Remove-ScheduledTask {
+function Remove-PSMJScheduledTask {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -836,10 +836,10 @@ function Remove-ScheduledTask {
     Name of the task to start.
 
 .EXAMPLE
-    Start-ScheduledTask -TaskName "MyJiggler"
+    Start-PSMJScheduledTask -TaskName "MyJiggler"
     Starts the MyJiggler scheduled task.
 #>
-function Start-ScheduledTask {
+function Start-PSMJScheduledTask {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -866,10 +866,10 @@ function Start-ScheduledTask {
     Name of the task to stop.
 
 .EXAMPLE
-    Stop-ScheduledTask -TaskName "MyJiggler"
+    Stop-PSMJScheduledTask -TaskName "MyJiggler"
     Stops the MyJiggler scheduled task.
 #>
-function Stop-ScheduledTask {
+function Stop-PSMJScheduledTask {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -1242,11 +1242,11 @@ Export-ModuleMember -Function @(
     'Move-Mouse',
     'Start-MovementPattern',
     'Stop-MovementPattern',
-    'Get-ScheduledTasks',
-    'New-ScheduledTask',
-    'Remove-ScheduledTask',
-    'Start-ScheduledTask',
-    'Stop-ScheduledTask',
+    'Get-PSMJScheduledTasks',        # Updated name
+    'New-PSMJScheduledTask',         # Updated name
+    'Remove-PSMJScheduledTask',      # Updated name
+    'Start-PSMJScheduledTask',       # Updated name
+    'Stop-PSMJScheduledTask',        # Updated name
     # New functions
     'Prevent-SystemIdle',
     'Send-KeyboardInput',

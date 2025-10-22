@@ -77,11 +77,11 @@
         'Move-Mouse',
         'Start-MovementPattern',
         'Stop-MovementPattern',
-        'Get-ScheduledTasks',
-        'New-ScheduledTask',
-        'Remove-ScheduledTask',
-        'Start-ScheduledTask',
-        'Stop-ScheduledTask',
+        'Get-PSMJScheduledTasks',       # Updated name
+        'New-PSMJScheduledTask',        # Updated name
+        'Remove-PSMJScheduledTask',     # Updated name
+        'Start-PSMJScheduledTask',      # Updated name
+        'Stop-PSMJScheduledTask',       # Updated name
         'Prevent-SystemIdle',
         'Send-KeyboardInput',
         'Send-MouseInput',
