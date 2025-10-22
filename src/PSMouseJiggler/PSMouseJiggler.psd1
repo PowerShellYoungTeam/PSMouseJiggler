@@ -130,7 +130,7 @@
                     - Remove-ScheduledTask → Remove-PSMJScheduledTask
                     - Start-ScheduledTask → Start-PSMJScheduledTask
                     - Stop-ScheduledTask → Stop-PSMJScheduledTask
-                - Fixed PSScriptAnalyzer warnings
+                - Fixed PSScriptAnalyzer warning
                 - Improved module compatibility with other PowerShell modules
 
                 Version 1.0.2
