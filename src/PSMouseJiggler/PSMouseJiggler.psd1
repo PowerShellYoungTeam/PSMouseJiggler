@@ -7,7 +7,7 @@
     RootModule             = 'PSMouseJiggler.psm1'
 
     # Version number of this module.
-    ModuleVersion          = '1.0.2'
+    ModuleVersion          = '1.0.3'
 
     # Supported PSEditions
     CompatiblePSEditions   = @('Desktop', 'Core')
@@ -123,16 +123,26 @@
 
             # ReleaseNotes of this module
             ReleaseNotes             = @'
-Version 1.0.2
-- Added advanced keep-awake methods: combines mouse, keyboard, and system API techniques for reliable anti-idle functionality
-- Introduced hardware-level input simulation for broader compatibility with strict power management
-- New API functions: Prevent-SystemIdle, Send-KeyboardInput, Send-MouseInput, Start-KeepAwake for custom automation and integration
-- Updated GUI layout: supports advanced keep-awake options and method selection
-- Enhanced configuration management: improved loading, saving, and updating of user preferences
-- Improved scheduled task support for automated jiggling
-- Fixed variable naming to avoid PowerShell built-in conflicts
-- Minor bug fixes and usability improvements
-- Ready for PowerShell Gallery distribution
+                Version 1.0.3
+                - Renamed scheduled task functions to prevent conflicts with other modules:
+                    - Get-ScheduledTasks → Get-PSMJScheduledTasks
+                    - New-ScheduledTask → New-PSMJScheduledTask
+                    - Remove-ScheduledTask → Remove-PSMJScheduledTask
+                    - Start-ScheduledTask → Start-PSMJScheduledTask
+                    - Stop-ScheduledTask → Stop-PSMJScheduledTask
+                - Fixed PSScriptAnalyzer warning
+                - Improved module compatibility with other PowerShell modules
+
+                Version 1.0.2
+                - Added advanced keep-awake methods: combines mouse, keyboard, and system API techniques for reliable anti-idle functionality
+                - Introduced hardware-level input simulation for broader compatibility with strict power management
+                - New API functions: Prevent-SystemIdle, Send-KeyboardInput, Send-MouseInput, Start-KeepAwake for custom automation and integration
+                - Updated GUI layout: supports advanced keep-awake options and method selection
+                - Enhanced configuration management: improved loading, saving, and updating of user preferences
+                - Improved scheduled task support for automated jiggling
+                - Fixed variable naming to avoid PowerShell built-in conflicts
+                - Minor bug fixes and usability improvements
+                - Ready for PowerShell Gallery distribution
 '@
 
             # Prerelease string of this module
