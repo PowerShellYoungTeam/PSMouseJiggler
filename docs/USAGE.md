@@ -90,13 +90,13 @@ Create scheduled tasks for automatic jiggling:
 
 ```powershell
 # Create a new scheduled task
-New-ScheduledTask -TaskName "MorningJiggler" -Action "powershell.exe -Command 'Start-PSMouseJiggler -Duration 3600'" -StartTime (Get-Date "09:00")
+New-PSMJScheduledTask -TaskName "MorningJiggler" -Action "powershell.exe -Command 'Start-PSMouseJiggler -Duration 3600'" -StartTime (Get-Date "09:00")
 
 # List existing tasks
-Get-ScheduledTasks
+Get-PSMJScheduledTasks
 
 # Remove a task
-Remove-ScheduledTask -TaskName "MorningJiggler"
+Remove-PSMJScheduledTask -TaskName "MorningJiggler"
 ```
 
 ## Advanced Keep-Awake Methods

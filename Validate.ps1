@@ -13,7 +13,8 @@ Write-Host "1. Testing module manifest..." -ForegroundColor Yellow
 try {
     $manifest = Test-ModuleManifest -Path "src\PSMouseJiggler\PSMouseJiggler.psd1" -ErrorAction Stop
     $successes += "✓ Module manifest is valid (Version: $($manifest.Version))"
-} catch {
+}
+catch {
     $errors += "✗ Module manifest validation failed: $($_.Exception.Message)"
 }
 
@@ -24,7 +25,8 @@ try {
     $fullPath = Join-Path $PSScriptRoot "src\PSMouseJiggler\PSMouseJiggler.psd1"
     Import-Module $fullPath -Force -ErrorAction Stop
     $successes += "✓ Module imported successfully"
-} catch {
+}
+catch {
     $errors += "✗ Module import failed: $($_.Exception.Message)"
 }
 
@@ -41,7 +43,8 @@ foreach ($func in $expectedFunctions) {
     try {
         Get-Command $func -ErrorAction Stop | Out-Null
         $successes += "✓ Function '$func' is available"
-    } catch {
+    }
+    catch {
         $errors += "✗ Function '$func' not found"
     }
 }
@@ -52,10 +55,12 @@ try {
     $config = Get-Configuration -ErrorAction Stop
     if ($config) {
         $successes += "✓ Configuration system works"
-    } else {
+    }
+    else {
         $errors += "✗ Configuration system returned null"
     }
-} catch {
+}
+catch {
     $errors += "✗ Configuration system failed: $($_.Exception.Message)"
 }
 
@@ -65,10 +70,12 @@ try {
     $testResult = Invoke-Pester -Path "tests\PSMouseJiggler.Module.Tests.ps1" -PassThru -ErrorAction Stop
     if ($testResult.FailedCount -eq 0) {
         $successes += "✓ All $($testResult.PassedCount) Pester tests passed"
-    } else {
+    }
+    else {
         $errors += "✗ $($testResult.FailedCount) Pester tests failed"
     }
-} catch {
+}
+catch {
     $errors += "✗ Pester tests failed to run: $($_.Exception.Message)"
 }
 
@@ -79,13 +86,15 @@ $releaseContent = Get-Content ".github\workflows\release.yml" -Raw
 
 if ($ciContent -match "src/PSMouseJiggler/PSMouseJiggler\.psd1") {
     $successes += "✓ CI workflow uses correct path"
-} else {
+}
+else {
     $errors += "✗ CI workflow path is incorrect"
 }
 
 if ($releaseContent -match "src\\PSMouseJiggler\\") {
     $successes += "✓ Release workflow uses correct path"
-} else {
+}
+else {
     $errors += "✗ Release workflow path is incorrect"
 }
 
@@ -102,7 +111,8 @@ if ($errors.Count -gt 0) {
     $errors | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
     Write-Host "`nValidation FAILED" -ForegroundColor Red
     exit 1
-} else {
+}
+else {
     Write-Host "`nValidation PASSED - All components working correctly!" -ForegroundColor Green
     Write-Host "The PSMouseJiggler module is ready for use and deployment." -ForegroundColor Green
 }

@@ -72,7 +72,6 @@ Get-Help Start-PSMouseJiggler -Full
 - `Show-PSMouseJigglerGUI` - Launch the graphical user interface
 - `Get-PSMouseJigglerConfig` - Get current configuration settings
 - `Set-PSMouseJigglerConfig` - Set configuration options
-- `New-PSMouseJigglerScheduledTask` - Create a scheduled task for automatic jiggling
 
 For detailed usage instructions, please refer to the [USAGE.md](docs/USAGE.md) file.
 
