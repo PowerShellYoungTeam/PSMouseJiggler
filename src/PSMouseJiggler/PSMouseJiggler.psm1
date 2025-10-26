@@ -29,6 +29,9 @@ $script:JigglingActive = $false
 .PARAMETER Duration
     Duration in seconds to run the jiggler. If not specified, runs indefinitely until stopped.
 
+.PARAMETER Incognito
+When enabled, clears the console after starting to maintain privacy/discretion.
+
 .EXAMPLE
     Start-PSMouseJiggler
     Starts mouse jiggling with default settings.
@@ -48,7 +51,10 @@ function Start-PSMouseJiggler {
         [string]$MovementPattern = 'Random',
 
         [Parameter()]
-        [int]$Duration = 0
+        [int]$Duration = 0,
+
+        [Parameter()]
+        [switch]$Incognito
     )
 
     if ($script:JigglingActive) {
@@ -111,6 +117,11 @@ function Start-PSMouseJiggler {
     }
     else {
         Write-Host "PSMouseJiggler is running indefinitely. Use Stop-PSMouseJiggler to stop." -ForegroundColor Yellow
+    }
+
+    # Clear console if incognito mode is enabled
+    if ($Incognito) {
+        Clear-Host
     }
 }
 
@@ -226,7 +237,7 @@ function Show-PSMouseJigglerGUI {
     # Create the main form
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "PSMouseJiggler"
-    $form.Size = New-Object System.Drawing.Size(400, 410) # Increased height for new controls
+    $form.Size = New-Object System.Drawing.Size(400, 450)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedDialog"
     $form.MaximizeBox = $false
@@ -279,17 +290,24 @@ function Show-PSMouseJigglerGUI {
     $durationTextBox.Size = New-Object System.Drawing.Size(100, 20)
     $form.Controls.Add($durationTextBox)
 
+    # Incognito mode checkbox
+    $incognitoCheckbox = New-Object System.Windows.Forms.CheckBox
+    $incognitoCheckbox.Text = "Incognito Mode (minimize GUI & clear console)"
+    $incognitoCheckbox.Location = New-Object System.Drawing.Point(20, 180)
+    $incognitoCheckbox.Size = New-Object System.Drawing.Size(300, 20)
+    $form.Controls.Add($incognitoCheckbox)
+
     # Advanced mode checkbox
     $advancedModeCheckbox = New-Object System.Windows.Forms.CheckBox
     $advancedModeCheckbox.Text = "Use Advanced Keep-Awake Methods"
-    $advancedModeCheckbox.Location = New-Object System.Drawing.Point(20, 180)
+    $advancedModeCheckbox.Location = New-Object System.Drawing.Point(20, 210)
     $advancedModeCheckbox.Size = New-Object System.Drawing.Size(250, 20)
     $form.Controls.Add($advancedModeCheckbox)
 
     # Method selection group
     $methodsGroupBox = New-Object System.Windows.Forms.GroupBox
     $methodsGroupBox.Text = "Keep-Awake Methods"
-    $methodsGroupBox.Location = New-Object System.Drawing.Point(20, 210)
+    $methodsGroupBox.Location = New-Object System.Drawing.Point(20, 240)
     $methodsGroupBox.Size = New-Object System.Drawing.Size(350, 100)
     $methodsGroupBox.Enabled = $false
     $form.Controls.Add($methodsGroupBox)
@@ -331,12 +349,13 @@ function Show-PSMouseJigglerGUI {
     # Start button
     $startButton = New-Object System.Windows.Forms.Button
     $startButton.Text = "Start Jiggling"
-    $startButton.Location = New-Object System.Drawing.Point(50, 320)
+    $startButton.Location = New-Object System.Drawing.Point(50, 360)
     $startButton.Size = New-Object System.Drawing.Size(100, 30)
     $startButton.Add_Click({
             try {
                 $interval = [int]$intervalTextBox.Text
                 $duration = [int]$durationTextBox.Text
+                $incognito = $incognitoCheckbox.Checked
 
                 if ($advancedModeCheckbox.Checked) {
                     $methods = @()
@@ -350,17 +369,23 @@ function Show-PSMouseJigglerGUI {
                         return
                     }
 
-                    Start-KeepAwake -Methods $methods -Interval $interval -Duration $duration
+                    Start-KeepAwake -Methods $methods -Interval $interval -Duration $duration -Incognito:$incognito
                     $statusLabel.Text = "Status: Running (Advanced Mode)"
                 }
                 else {
                     $pattern = $patternComboBox.SelectedItem.ToString()
-                    Start-PSMouseJiggler -Interval $interval -MovementPattern $pattern -Duration $duration
+                    Start-PSMouseJiggler -Interval $interval -MovementPattern $pattern -Duration $duration -Incognito:$incognito
                     $statusLabel.Text = "Status: Running ($pattern)"
                 }
 
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
+
+                # If incognito mode is enabled, minimize the form
+                if ($incognito) {
+                    $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+                    $form.ShowInTaskbar = $false
+                }
             }
             catch {
                 [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
@@ -371,7 +396,7 @@ function Show-PSMouseJigglerGUI {
     # Stop button
     $stopButton = New-Object System.Windows.Forms.Button
     $stopButton.Text = "Stop Jiggling"
-    $stopButton.Location = New-Object System.Drawing.Point(200, 320)
+    $stopButton.Location = New-Object System.Drawing.Point(200, 360)
     $stopButton.Size = New-Object System.Drawing.Size(100, 30)
     $stopButton.Enabled = $false
     $stopButton.Add_Click({
@@ -379,6 +404,13 @@ function Show-PSMouseJigglerGUI {
             $statusLabel.Text = "Status: Stopped"
             $startButton.Enabled = $true
             $stopButton.Enabled = $false
+
+            # Restore form if it was minimized in incognito mode
+            if ($form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
+                $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
+                $form.ShowInTaskbar = $true
+                $form.Activate()
+            }
         })
     $form.Controls.Add($stopButton)
 
@@ -390,12 +422,34 @@ function Show-PSMouseJigglerGUI {
                 $statusLabel.Text = "Status: Stopped"
                 $startButton.Enabled = $true
                 $stopButton.Enabled = $false
+
+                # Restore form if it was minimized
+                if ($form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
+                    $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
+                    $form.ShowInTaskbar = $true
+                    $form.Activate()
+                }
             }
         })
     $timer.Start()
 
-    # Show the form
-    $form.Add_Shown({ $form.Activate() })
+    # Add form shown event to check initial state
+    $form.Add_Shown({
+            # Check if jiggling is already active when GUI opens
+            if ($script:JigglingActive) {
+                $statusLabel.Text = "Status: Running (Started from Console)"
+                $startButton.Enabled = $false
+                $stopButton.Enabled = $true
+
+                # Restore form if it was minimized
+                if ($form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
+                    $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
+                    $form.ShowInTaskbar = $true
+                }
+            }
+            $form.Activate()
+        })
+
     $form.Add_FormClosed({ $timer.Stop() })
     [void]$form.ShowDialog()
 }
@@ -1061,6 +1115,9 @@ function Send-MouseInput {
 .PARAMETER Duration
     Duration in seconds to run. Default is 0 (indefinite).
 
+.PARAMETER Incognito
+When enabled, clears the console after starting to maintain privacy/discretion.
+
 .EXAMPLE
     Start-KeepAwake -Interval 60000 -Duration 3600
     Keeps the system awake for 1 hour, performing actions every 60 seconds.
@@ -1076,7 +1133,10 @@ function Start-KeepAwake {
         [int]$Interval = 30000,
 
         [Parameter()]
-        [int]$Duration = 0
+        [int]$Duration = 0,
+
+        [Parameter()]
+        [switch]$Incognito
     )
 
     if ($script:JigglingActive) {
@@ -1205,6 +1265,11 @@ function Start-KeepAwake {
     }
     else {
         Write-Host "PSMouseJiggler KeepAwake is running indefinitely. Use Stop-PSMouseJiggler to stop." -ForegroundColor Yellow
+    }
+
+    # Clear console if incognito mode is enabled
+    if ($Incognito) {
+        Clear-Host
     }
 }
 

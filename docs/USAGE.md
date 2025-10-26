@@ -118,6 +118,21 @@ Start-KeepAwake -Methods 'MouseHardware', 'SystemAPI'
 # Customize the interval between actions (in milliseconds)
 Start-KeepAwake -Interval 60000  # Perform actions every minute
 
+### Incognito Mode
+
+Run PSMouseJiggler discreetly:
+
+```powershell
+# Start with incognito mode - clears console
+Start-PSMouseJiggler -Incognito
+
+# Start keep-awake with incognito mode
+Start-KeepAwake -Incognito
+
+# Use incognito mode from GUI - minimizes window and clears console
+Show-PSMouseJigglerGUI
+# Then check the "Incognito Mode" checkbox before starting
+
 ## Troubleshooting
 
 If you encounter issues, ensure that you have the necessary permissions to run PowerShell scripts. You may need to adjust your execution policy:
