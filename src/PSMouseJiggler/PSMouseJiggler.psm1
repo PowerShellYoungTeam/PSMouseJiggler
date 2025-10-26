@@ -221,14 +221,29 @@ function Get-NewMousePosition {
 
 <#
 .SYNOPSIS
-    Shows the PSMouseJiggler GUI interface.
+    Shows the PSMouseJiggler GUI interface with tabbed controls.
 
 .DESCRIPTION
-    Displays a graphical user interface for controlling the mouse jiggler.
+    Displays a modern graphical user interface with three main tabs:
+    - Basic: Simple mouse jiggling with movement patterns and input methods
+    - Advanced: Multi-method keep-awake with configurable techniques
+    - Quick Launch: Five pre-configured profiles for common scenarios
+
+    The GUI provides comprehensive controls including incognito mode, duration settings,
+    and detailed help information about each feature.
 
 .EXAMPLE
     Show-PSMouseJigglerGUI
-    Opens the GUI interface.
+    Opens the GUI interface with all tabs available.
+
+.EXAMPLE
+    Show-PSMouseJigglerGUI
+    # Use the Quick Launch tab for one-click start with pre-configured profiles:
+    # - [Mouse] Basic Discrete
+    # - [Lock] Maximum Security
+    # - [Key] Keyboard Only
+    # - [API] System API Only
+    # - [MAX] All Methods
 #>
 function Show-PSMouseJigglerGUI {
     [CmdletBinding()]
@@ -236,128 +251,519 @@ function Show-PSMouseJigglerGUI {
 
     # Create the main form
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = "PSMouseJiggler"
-    $form.Size = New-Object System.Drawing.Size(400, 450)
+    $form.Text = "PSMouseJiggler v1.0.4"
+    $form.Size = New-Object System.Drawing.Size(600, 550)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedDialog"
     $form.MaximizeBox = $false
+    $form.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
 
-    # Status label
+    # Create TabControl
+    $tabControl = New-Object System.Windows.Forms.TabControl
+    $tabControl.Location = New-Object System.Drawing.Point(10, 10)
+    $tabControl.Size = New-Object System.Drawing.Size(560, 420)
+    $form.Controls.Add($tabControl)
+
+    #region Basic Tab
+    $basicTab = New-Object System.Windows.Forms.TabPage
+    $basicTab.Text = "Basic Mode"
+    $basicTab.BackColor = [System.Drawing.Color]::White
+    $tabControl.Controls.Add($basicTab)
+
+    # Status Panel
+    $statusGroupBox = New-Object System.Windows.Forms.GroupBox
+    $statusGroupBox.Text = "Current Status"
+    $statusGroupBox.Location = New-Object System.Drawing.Point(20, 20)
+    $statusGroupBox.Size = New-Object System.Drawing.Size(500, 70)
+    $basicTab.Controls.Add($statusGroupBox)
+
     $statusLabel = New-Object System.Windows.Forms.Label
     $statusLabel.Text = "Status: Stopped"
-    $statusLabel.Location = New-Object System.Drawing.Point(20, 20)
-    $statusLabel.Size = New-Object System.Drawing.Size(200, 20)
-    $form.Controls.Add($statusLabel)
+    $statusLabel.Location = New-Object System.Drawing.Point(15, 25)
+    $statusLabel.Size = New-Object System.Drawing.Size(470, 20)
+    $statusLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+    $statusLabel.ForeColor = [System.Drawing.Color]::DarkRed
+    $statusGroupBox.Controls.Add($statusLabel)
 
-    # Interval input
-    $intervalLabel = New-Object System.Windows.Forms.Label
-    $intervalLabel.Text = "Interval (ms):"
-    $intervalLabel.Location = New-Object System.Drawing.Point(20, 60)
-    $intervalLabel.Size = New-Object System.Drawing.Size(80, 20)
-    $form.Controls.Add($intervalLabel)
+    $statusDetailsLabel = New-Object System.Windows.Forms.Label
+    $statusDetailsLabel.Text = "Ready to start mouse jiggling"
+    $statusDetailsLabel.Location = New-Object System.Drawing.Point(15, 45)
+    $statusDetailsLabel.Size = New-Object System.Drawing.Size(470, 20)
+    $statusDetailsLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+    $statusDetailsLabel.ForeColor = [System.Drawing.Color]::Gray
+    $statusGroupBox.Controls.Add($statusDetailsLabel)
 
-    $intervalTextBox = New-Object System.Windows.Forms.TextBox
-    $intervalTextBox.Text = "1000"
-    $intervalTextBox.Location = New-Object System.Drawing.Point(110, 60)
-    $intervalTextBox.Size = New-Object System.Drawing.Size(100, 20)
-    $form.Controls.Add($intervalTextBox)
+    # Settings GroupBox
+    $settingsGroupBox = New-Object System.Windows.Forms.GroupBox
+    $settingsGroupBox.Text = "Basic Settings"
+    $settingsGroupBox.Location = New-Object System.Drawing.Point(20, 100)
+    $settingsGroupBox.Size = New-Object System.Drawing.Size(500, 200)
+    $basicTab.Controls.Add($settingsGroupBox)
 
-    # Pattern selection
+    # Movement Pattern
     $patternLabel = New-Object System.Windows.Forms.Label
     $patternLabel.Text = "Movement Pattern:"
-    $patternLabel.Location = New-Object System.Drawing.Point(20, 100)
+    $patternLabel.Location = New-Object System.Drawing.Point(15, 30)
     $patternLabel.Size = New-Object System.Drawing.Size(120, 20)
-    $form.Controls.Add($patternLabel)
+    $settingsGroupBox.Controls.Add($patternLabel)
 
     $patternComboBox = New-Object System.Windows.Forms.ComboBox
-    $patternComboBox.Location = New-Object System.Drawing.Point(150, 100)
-    $patternComboBox.Size = New-Object System.Drawing.Size(120, 20)
+    $patternComboBox.Location = New-Object System.Drawing.Point(150, 28)
+    $patternComboBox.Size = New-Object System.Drawing.Size(150, 20)
     $patternComboBox.DropDownStyle = "DropDownList"
     $patternComboBox.Items.AddRange(@("Random", "Horizontal", "Vertical", "Circular"))
     $patternComboBox.SelectedIndex = 0
-    $form.Controls.Add($patternComboBox)
+    $settingsGroupBox.Controls.Add($patternComboBox)
 
-    # Duration input
+    $patternDescLabel = New-Object System.Windows.Forms.Label
+    $patternDescLabel.Text = "Simulates natural mouse movements"
+    $patternDescLabel.Location = New-Object System.Drawing.Point(310, 30)
+    $patternDescLabel.Size = New-Object System.Drawing.Size(180, 20)
+    $patternDescLabel.Font = New-Object System.Drawing.Font("Segoe UI", 7)
+    $patternDescLabel.ForeColor = [System.Drawing.Color]::Gray
+    $settingsGroupBox.Controls.Add($patternDescLabel)
+
+    # Update description based on pattern selection
+    $patternComboBox.Add_SelectedIndexChanged({
+            switch ($patternComboBox.SelectedItem.ToString()) {
+                'Random' { $patternDescLabel.Text = "Random movements in all directions" }
+                'Horizontal' { $patternDescLabel.Text = "Left-right movements only" }
+                'Vertical' { $patternDescLabel.Text = "Up-down movements only" }
+                'Circular' { $patternDescLabel.Text = "Smooth circular motion pattern" }
+            }
+        })
+
+    # Interval
+    $intervalLabel = New-Object System.Windows.Forms.Label
+    $intervalLabel.Text = "Interval (milliseconds):"
+    $intervalLabel.Location = New-Object System.Drawing.Point(15, 65)
+    $intervalLabel.Size = New-Object System.Drawing.Size(130, 20)
+    $settingsGroupBox.Controls.Add($intervalLabel)
+
+    $intervalTextBox = New-Object System.Windows.Forms.TextBox
+    $intervalTextBox.Text = "1000"
+    $intervalTextBox.Location = New-Object System.Drawing.Point(150, 63)
+    $intervalTextBox.Size = New-Object System.Drawing.Size(80, 20)
+    $settingsGroupBox.Controls.Add($intervalTextBox)
+
+    $intervalDescLabel = New-Object System.Windows.Forms.Label
+    $intervalDescLabel.Text = "Time between movements (1000 = 1 second)"
+    $intervalDescLabel.Location = New-Object System.Drawing.Point(240, 65)
+    $intervalDescLabel.Size = New-Object System.Drawing.Size(250, 20)
+    $intervalDescLabel.Font = New-Object System.Drawing.Font("Segoe UI", 7)
+    $intervalDescLabel.ForeColor = [System.Drawing.Color]::Gray
+    $settingsGroupBox.Controls.Add($intervalDescLabel)
+
+    # Duration
     $durationLabel = New-Object System.Windows.Forms.Label
-    $durationLabel.Text = "Duration (sec, 0=infinite):"
-    $durationLabel.Location = New-Object System.Drawing.Point(20, 140)
-    $durationLabel.Size = New-Object System.Drawing.Size(140, 20)
-    $form.Controls.Add($durationLabel)
+    $durationLabel.Text = "Duration (seconds):"
+    $durationLabel.Location = New-Object System.Drawing.Point(15, 100)
+    $durationLabel.Size = New-Object System.Drawing.Size(120, 20)
+    $settingsGroupBox.Controls.Add($durationLabel)
 
     $durationTextBox = New-Object System.Windows.Forms.TextBox
     $durationTextBox.Text = "0"
-    $durationTextBox.Location = New-Object System.Drawing.Point(170, 140)
-    $durationTextBox.Size = New-Object System.Drawing.Size(100, 20)
-    $form.Controls.Add($durationTextBox)
+    $durationTextBox.Location = New-Object System.Drawing.Point(150, 98)
+    $durationTextBox.Size = New-Object System.Drawing.Size(80, 20)
+    $settingsGroupBox.Controls.Add($durationTextBox)
+
+    $durationDescLabel = New-Object System.Windows.Forms.Label
+    $durationDescLabel.Text = "How long to run (0 = run until stopped)"
+    $durationDescLabel.Location = New-Object System.Drawing.Point(240, 100)
+    $durationDescLabel.Size = New-Object System.Drawing.Size(250, 20)
+    $durationDescLabel.Font = New-Object System.Drawing.Font("Segoe UI", 7)
+    $durationDescLabel.ForeColor = [System.Drawing.Color]::Gray
+    $settingsGroupBox.Controls.Add($durationDescLabel)
+
+    # Mouse Movement Type (linking basic to advanced mouse methods)
+    $mouseTypeLabel = New-Object System.Windows.Forms.Label
+    $mouseTypeLabel.Text = "Mouse Input Method:"
+    $mouseTypeLabel.Location = New-Object System.Drawing.Point(15, 135)
+    $mouseTypeLabel.Size = New-Object System.Drawing.Size(130, 20)
+    $settingsGroupBox.Controls.Add($mouseTypeLabel)
+
+    $mouseTypeComboBox = New-Object System.Windows.Forms.ComboBox
+    $mouseTypeComboBox.Location = New-Object System.Drawing.Point(150, 133)
+    $mouseTypeComboBox.Size = New-Object System.Drawing.Size(150, 20)
+    $mouseTypeComboBox.DropDownStyle = "DropDownList"
+    $mouseTypeComboBox.Items.AddRange(@("Software (Standard)", "Hardware (Low-level)", "Both (Redundant)"))
+    $mouseTypeComboBox.SelectedIndex = 0
+    $settingsGroupBox.Controls.Add($mouseTypeComboBox)
+
+    $mouseTypeDescLabel = New-Object System.Windows.Forms.Label
+    $mouseTypeDescLabel.Text = "Standard method for most systems"
+    $mouseTypeDescLabel.Location = New-Object System.Drawing.Point(310, 135)
+    $mouseTypeDescLabel.Size = New-Object System.Drawing.Size(180, 20)
+    $mouseTypeDescLabel.Font = New-Object System.Drawing.Font("Segoe UI", 7)
+    $mouseTypeDescLabel.ForeColor = [System.Drawing.Color]::Gray
+    $settingsGroupBox.Controls.Add($mouseTypeDescLabel)
+
+    $mouseTypeComboBox.Add_SelectedIndexChanged({
+            switch ($mouseTypeComboBox.SelectedIndex) {
+                0 { $mouseTypeDescLabel.Text = "Standard method for most systems" }
+                1 { $mouseTypeDescLabel.Text = "Better for strict security policies" }
+                2 { $mouseTypeDescLabel.Text = "Maximum reliability (both methods)" }
+            }
+        })
 
     # Incognito mode checkbox
     $incognitoCheckbox = New-Object System.Windows.Forms.CheckBox
-    $incognitoCheckbox.Text = "Incognito Mode (minimize GUI & clear console)"
-    $incognitoCheckbox.Location = New-Object System.Drawing.Point(20, 180)
-    $incognitoCheckbox.Size = New-Object System.Drawing.Size(300, 20)
-    $form.Controls.Add($incognitoCheckbox)
+    $incognitoCheckbox.Text = "Incognito Mode (minimize window & clear console)"
+    $incognitoCheckbox.Location = New-Object System.Drawing.Point(15, 165)
+    $incognitoCheckbox.Size = New-Object System.Drawing.Size(350, 20)
+    $settingsGroupBox.Controls.Add($incognitoCheckbox)
+    #endregion
 
-    # Advanced mode checkbox
-    $advancedModeCheckbox = New-Object System.Windows.Forms.CheckBox
-    $advancedModeCheckbox.Text = "Use Advanced Keep-Awake Methods"
-    $advancedModeCheckbox.Location = New-Object System.Drawing.Point(20, 210)
-    $advancedModeCheckbox.Size = New-Object System.Drawing.Size(250, 20)
-    $form.Controls.Add($advancedModeCheckbox)
+    #region Advanced Tab
+    $advancedTab = New-Object System.Windows.Forms.TabPage
+    $advancedTab.Text = "Advanced Mode"
+    $advancedTab.BackColor = [System.Drawing.Color]::White
+    $tabControl.Controls.Add($advancedTab)
 
-    # Method selection group
+    # Advanced Info Label
+    $advancedInfoLabel = New-Object System.Windows.Forms.Label
+    $advancedInfoLabel.Text = "Advanced mode combines multiple methods to prevent sleep/screensaver activation"
+    $advancedInfoLabel.Location = New-Object System.Drawing.Point(20, 20)
+    $advancedInfoLabel.Size = New-Object System.Drawing.Size(500, 30)
+    $advancedInfoLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+    $advancedInfoLabel.ForeColor = [System.Drawing.Color]::FromArgb(0, 102, 204)
+    $advancedTab.Controls.Add($advancedInfoLabel)
+
+    # Method Selection GroupBox
     $methodsGroupBox = New-Object System.Windows.Forms.GroupBox
-    $methodsGroupBox.Text = "Keep-Awake Methods"
-    $methodsGroupBox.Location = New-Object System.Drawing.Point(20, 240)
-    $methodsGroupBox.Size = New-Object System.Drawing.Size(350, 100)
-    $methodsGroupBox.Enabled = $false
-    $form.Controls.Add($methodsGroupBox)
+    $methodsGroupBox.Text = "Keep-Awake Methods (Select one or more)"
+    $methodsGroupBox.Location = New-Object System.Drawing.Point(20, 60)
+    $methodsGroupBox.Size = New-Object System.Drawing.Size(500, 180)
+    $advancedTab.Controls.Add($methodsGroupBox)
 
-    # Method checkboxes
+    # Mouse Software Checkbox
     $mouseSoftwareCheckbox = New-Object System.Windows.Forms.CheckBox
     $mouseSoftwareCheckbox.Text = "Software Mouse Movements"
-    $mouseSoftwareCheckbox.Location = New-Object System.Drawing.Point(10, 20)
-    $mouseSoftwareCheckbox.Size = New-Object System.Drawing.Size(200, 20)
+    $mouseSoftwareCheckbox.Location = New-Object System.Drawing.Point(15, 25)
+    $mouseSoftwareCheckbox.Size = New-Object System.Drawing.Size(220, 20)
     $mouseSoftwareCheckbox.Checked = $true
     $methodsGroupBox.Controls.Add($mouseSoftwareCheckbox)
 
+    $mouseSoftwareDesc = New-Object System.Windows.Forms.Label
+    $mouseSoftwareDesc.Text = "Standard cursor position changes"
+    $mouseSoftwareDesc.Location = New-Object System.Drawing.Point(240, 25)
+    $mouseSoftwareDesc.Size = New-Object System.Drawing.Size(250, 20)
+    $mouseSoftwareDesc.Font = New-Object System.Drawing.Font("Segoe UI", 7)
+    $mouseSoftwareDesc.ForeColor = [System.Drawing.Color]::Gray
+    $methodsGroupBox.Controls.Add($mouseSoftwareDesc)
+
+    # Mouse Hardware Checkbox
     $mouseHardwareCheckbox = New-Object System.Windows.Forms.CheckBox
-    $mouseHardwareCheckbox.Text = "Hardware Mouse Movements"
-    $mouseHardwareCheckbox.Location = New-Object System.Drawing.Point(10, 45)
-    $mouseHardwareCheckbox.Size = New-Object System.Drawing.Size(200, 20)
+    $mouseHardwareCheckbox.Text = "Hardware Mouse Input"
+    $mouseHardwareCheckbox.Location = New-Object System.Drawing.Point(15, 55)
+    $mouseHardwareCheckbox.Size = New-Object System.Drawing.Size(220, 20)
     $mouseHardwareCheckbox.Checked = $true
     $methodsGroupBox.Controls.Add($mouseHardwareCheckbox)
 
+    $mouseHardwareDesc = New-Object System.Windows.Forms.Label
+    $mouseHardwareDesc.Text = "Low-level input simulation (SendInput API)"
+    $mouseHardwareDesc.Location = New-Object System.Drawing.Point(240, 55)
+    $mouseHardwareDesc.Size = New-Object System.Drawing.Size(250, 20)
+    $mouseHardwareDesc.Font = New-Object System.Drawing.Font("Segoe UI", 7)
+    $mouseHardwareDesc.ForeColor = [System.Drawing.Color]::Gray
+    $methodsGroupBox.Controls.Add($mouseHardwareDesc)
+
+    # Keyboard Checkbox
     $keyboardCheckbox = New-Object System.Windows.Forms.CheckBox
-    $keyboardCheckbox.Text = "Keyboard Input"
-    $keyboardCheckbox.Location = New-Object System.Drawing.Point(10, 70)
-    $keyboardCheckbox.Size = New-Object System.Drawing.Size(120, 20)
+    $keyboardCheckbox.Text = "Keyboard Input (F15 key)"
+    $keyboardCheckbox.Location = New-Object System.Drawing.Point(15, 85)
+    $keyboardCheckbox.Size = New-Object System.Drawing.Size(220, 20)
     $keyboardCheckbox.Checked = $true
     $methodsGroupBox.Controls.Add($keyboardCheckbox)
 
+    $keyboardDesc = New-Object System.Windows.Forms.Label
+    $keyboardDesc.Text = "Sends non-disruptive key press"
+    $keyboardDesc.Location = New-Object System.Drawing.Point(240, 85)
+    $keyboardDesc.Size = New-Object System.Drawing.Size(250, 20)
+    $keyboardDesc.Font = New-Object System.Drawing.Font("Segoe UI", 7)
+    $keyboardDesc.ForeColor = [System.Drawing.Color]::Gray
+    $methodsGroupBox.Controls.Add($keyboardDesc)
+
+    # System API Checkbox
     $systemApiCheckbox = New-Object System.Windows.Forms.CheckBox
-    $systemApiCheckbox.Text = "System API"
-    $systemApiCheckbox.Location = New-Object System.Drawing.Point(180, 70)
-    $systemApiCheckbox.Size = New-Object System.Drawing.Size(120, 20)
+    $systemApiCheckbox.Text = "System API (SetThreadExecutionState)"
+    $systemApiCheckbox.Location = New-Object System.Drawing.Point(15, 115)
+    $systemApiCheckbox.Size = New-Object System.Drawing.Size(250, 20)
     $systemApiCheckbox.Checked = $true
     $methodsGroupBox.Controls.Add($systemApiCheckbox)
 
-    # Enable/disable method selection based on advanced mode
-    $advancedModeCheckbox.Add_CheckedChanged({
-            $methodsGroupBox.Enabled = $advancedModeCheckbox.Checked
+    $systemApiDesc = New-Object System.Windows.Forms.Label
+    $systemApiDesc.Text = "Directly prevents Windows power management"
+    $systemApiDesc.Location = New-Object System.Drawing.Point(270, 115)
+    $systemApiDesc.Size = New-Object System.Drawing.Size(220, 20)
+    $systemApiDesc.Font = New-Object System.Drawing.Font("Segoe UI", 7)
+    $systemApiDesc.ForeColor = [System.Drawing.Color]::Gray
+    $methodsGroupBox.Controls.Add($systemApiDesc)
+
+    # Advanced Interval
+    $advIntervalLabel = New-Object System.Windows.Forms.Label
+    $advIntervalLabel.Text = "Interval (milliseconds):"
+    $advIntervalLabel.Location = New-Object System.Drawing.Point(15, 145)
+    $advIntervalLabel.Size = New-Object System.Drawing.Size(130, 20)
+    $methodsGroupBox.Controls.Add($advIntervalLabel)
+
+    $advIntervalTextBox = New-Object System.Windows.Forms.TextBox
+    $advIntervalTextBox.Text = "30000"
+    $advIntervalTextBox.Location = New-Object System.Drawing.Point(150, 143)
+    $advIntervalTextBox.Size = New-Object System.Drawing.Size(80, 20)
+    $methodsGroupBox.Controls.Add($advIntervalTextBox)
+
+    $advIntervalDesc = New-Object System.Windows.Forms.Label
+    $advIntervalDesc.Text = "30000 = 30 seconds (recommended for keep-awake)"
+    $advIntervalDesc.Location = New-Object System.Drawing.Point(240, 145)
+    $advIntervalDesc.Size = New-Object System.Drawing.Size(250, 20)
+    $advIntervalDesc.Font = New-Object System.Drawing.Font("Segoe UI", 7)
+    $advIntervalDesc.ForeColor = [System.Drawing.Color]::Gray
+    $methodsGroupBox.Controls.Add($advIntervalDesc)
+
+    # Advanced Duration
+    $advDurationGroupBox = New-Object System.Windows.Forms.GroupBox
+    $advDurationGroupBox.Text = "Duration Settings"
+    $advDurationGroupBox.Location = New-Object System.Drawing.Point(20, 250)
+    $advDurationGroupBox.Size = New-Object System.Drawing.Size(500, 80)
+    $advancedTab.Controls.Add($advDurationGroupBox)
+
+    $advDurationLabel = New-Object System.Windows.Forms.Label
+    $advDurationLabel.Text = "Duration (seconds):"
+    $advDurationLabel.Location = New-Object System.Drawing.Point(15, 25)
+    $advDurationLabel.Size = New-Object System.Drawing.Size(120, 20)
+    $advDurationGroupBox.Controls.Add($advDurationLabel)
+
+    $advDurationTextBox = New-Object System.Windows.Forms.TextBox
+    $advDurationTextBox.Text = "0"
+    $advDurationTextBox.Location = New-Object System.Drawing.Point(150, 23)
+    $advDurationTextBox.Size = New-Object System.Drawing.Size(80, 20)
+    $advDurationGroupBox.Controls.Add($advDurationTextBox)
+
+    $advDurationDesc = New-Object System.Windows.Forms.Label
+    $advDurationDesc.Text = "0 = run until manually stopped"
+    $advDurationDesc.Location = New-Object System.Drawing.Point(240, 25)
+    $advDurationDesc.Size = New-Object System.Drawing.Size(250, 20)
+    $advDurationDesc.Font = New-Object System.Drawing.Font("Segoe UI", 7)
+    $advDurationDesc.ForeColor = [System.Drawing.Color]::Gray
+    $advDurationGroupBox.Controls.Add($advDurationDesc)
+
+    # Advanced Incognito
+    $advIncognitoCheckbox = New-Object System.Windows.Forms.CheckBox
+    $advIncognitoCheckbox.Text = "Incognito Mode"
+    $advIncognitoCheckbox.Location = New-Object System.Drawing.Point(15, 50)
+    $advIncognitoCheckbox.Size = New-Object System.Drawing.Size(200, 20)
+    $advDurationGroupBox.Controls.Add($advIncognitoCheckbox)
+    #endregion
+
+    #region Favorites Tab
+    $favoritesTab = New-Object System.Windows.Forms.TabPage
+    $favoritesTab.Text = "Quick Launch"
+    $favoritesTab.BackColor = [System.Drawing.Color]::White
+    $tabControl.Controls.Add($favoritesTab)
+
+    # Favorites Info
+    $favInfoLabel = New-Object System.Windows.Forms.Label
+    $favInfoLabel.Text = "Quick launch pre-configured profiles for common scenarios"
+    $favInfoLabel.Location = New-Object System.Drawing.Point(20, 20)
+    $favInfoLabel.Size = New-Object System.Drawing.Size(500, 20)
+    $favInfoLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+    $favInfoLabel.ForeColor = [System.Drawing.Color]::FromArgb(0, 102, 204)
+    $favoritesTab.Controls.Add($favInfoLabel)
+
+    # Quick Launch Buttons
+    $quickLaunchGroupBox = New-Object System.Windows.Forms.GroupBox
+    $quickLaunchGroupBox.Text = "Quick Launch Profiles"
+    $quickLaunchGroupBox.Location = New-Object System.Drawing.Point(20, 50)
+    $quickLaunchGroupBox.Size = New-Object System.Drawing.Size(500, 320)
+    $favoritesTab.Controls.Add($quickLaunchGroupBox)
+
+    # Profile 1: Basic Discrete
+    $profile1Button = New-Object System.Windows.Forms.Button
+    $profile1Button.Text = "[Mouse] Basic Discrete"
+    $profile1Button.Location = New-Object System.Drawing.Point(20, 30)
+    $profile1Button.Size = New-Object System.Drawing.Size(220, 50)
+    $profile1Button.BackColor = [System.Drawing.Color]::FromArgb(230, 240, 255)
+    $quickLaunchGroupBox.Controls.Add($profile1Button)
+
+    $profile1Desc = New-Object System.Windows.Forms.Label
+    $profile1Desc.Text = "Random mouse movements every 1 second`nSoftware method, incognito mode"
+    $profile1Desc.Location = New-Object System.Drawing.Point(250, 30)
+    $profile1Desc.Size = New-Object System.Drawing.Size(230, 40)
+    $profile1Desc.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+    $quickLaunchGroupBox.Controls.Add($profile1Desc)
+
+    $profile1Button.Add_Click({
+            try {
+                Start-PSMouseJiggler -Interval 1000 -MovementPattern 'Random' -Duration 0 -Incognito
+                $statusLabel.Text = "Status: Running (Basic Discrete)"
+                $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
+                $statusDetailsLabel.Text = "Profile: Basic Discrete | Random movement, 1s interval"
+                $startButton.Enabled = $false
+                $stopButton.Enabled = $true
+                $tabControl.SelectedIndex = 0
+            }
+            catch {
+                [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
+            }
         })
 
+    # Profile 2: Maximum Security
+    $profile2Button = New-Object System.Windows.Forms.Button
+    $profile2Button.Text = "[Lock] Maximum Security"
+    $profile2Button.Location = New-Object System.Drawing.Point(20, 95)
+    $profile2Button.Size = New-Object System.Drawing.Size(220, 50)
+    $profile2Button.BackColor = [System.Drawing.Color]::FromArgb(255, 240, 230)
+    $quickLaunchGroupBox.Controls.Add($profile2Button)
+
+    $profile2Desc = New-Object System.Windows.Forms.Label
+    $profile2Desc.Text = "Hardware mouse + System API`nBest for strict security policies, 30s interval"
+    $profile2Desc.Location = New-Object System.Drawing.Point(250, 95)
+    $profile2Desc.Size = New-Object System.Drawing.Size(230, 40)
+    $profile2Desc.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+    $quickLaunchGroupBox.Controls.Add($profile2Desc)
+
+    $profile2Button.Add_Click({
+            try {
+                Start-KeepAwake -Methods @('MouseHardware', 'SystemAPI') -Interval 30000 -Duration 0 -Incognito
+                $statusLabel.Text = "Status: Running (Maximum Security)"
+                $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
+                $statusDetailsLabel.Text = "Profile: Maximum Security | Hardware + System API, 30s interval"
+                $startButton.Enabled = $false
+                $stopButton.Enabled = $true
+                $tabControl.SelectedIndex = 0
+            }
+            catch {
+                [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
+            }
+        })
+
+    # Profile 3: Keyboard Only
+    $profile3Button = New-Object System.Windows.Forms.Button
+    $profile3Button.Text = "[Key] Keyboard Only"
+    $profile3Button.Location = New-Object System.Drawing.Point(20, 160)
+    $profile3Button.Size = New-Object System.Drawing.Size(220, 50)
+    $profile3Button.BackColor = [System.Drawing.Color]::FromArgb(240, 255, 240)
+    $quickLaunchGroupBox.Controls.Add($profile3Button)
+
+    $profile3Desc = New-Object System.Windows.Forms.Label
+    $profile3Desc.Text = "Keyboard input only (F15 key)`nNo mouse movement, 30s interval"
+    $profile3Desc.Location = New-Object System.Drawing.Point(250, 160)
+    $profile3Desc.Size = New-Object System.Drawing.Size(230, 40)
+    $profile3Desc.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+    $quickLaunchGroupBox.Controls.Add($profile3Desc)
+
+    $profile3Button.Add_Click({
+            try {
+                Start-KeepAwake -Methods @('Keyboard') -Interval 30000 -Duration 0 -Incognito
+                $statusLabel.Text = "Status: Running (Keyboard Only)"
+                $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
+                $statusDetailsLabel.Text = "Profile: Keyboard Only | F15 key press, 30s interval"
+                $startButton.Enabled = $false
+                $stopButton.Enabled = $true
+                $tabControl.SelectedIndex = 0
+            }
+            catch {
+                [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
+            }
+        })
+
+    # Profile 4: System API Only
+    $profile4Button = New-Object System.Windows.Forms.Button
+    $profile4Button.Text = "[API] System API Only"
+    $profile4Button.Location = New-Object System.Drawing.Point(20, 225)
+    $profile4Button.Size = New-Object System.Drawing.Size(220, 50)
+    $profile4Button.BackColor = [System.Drawing.Color]::FromArgb(255, 250, 230)
+    $quickLaunchGroupBox.Controls.Add($profile4Button)
+
+    $profile4Desc = New-Object System.Windows.Forms.Label
+    $profile4Desc.Text = "System API only (SetThreadExecutionState)`nDirect Windows power management control"
+    $profile4Desc.Location = New-Object System.Drawing.Point(250, 225)
+    $profile4Desc.Size = New-Object System.Drawing.Size(230, 40)
+    $profile4Desc.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+    $quickLaunchGroupBox.Controls.Add($profile4Desc)
+
+    $profile4Button.Add_Click({
+            try {
+                Start-KeepAwake -Methods @('SystemAPI') -Interval 30000 -Duration 0 -Incognito
+                $statusLabel.Text = "Status: Running (System API Only)"
+                $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
+                $statusDetailsLabel.Text = "Profile: System API | Direct power management control"
+                $startButton.Enabled = $false
+                $stopButton.Enabled = $true
+                $tabControl.SelectedIndex = 0
+            }
+            catch {
+                [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
+            }
+        })
+
+    # Profile 5: All Methods
+    $profile5Button = New-Object System.Windows.Forms.Button
+    $profile5Button.Text = "[MAX] All Methods (Maximum)"
+    $profile5Button.Location = New-Object System.Drawing.Point(20, 285)
+    $profile5Button.Size = New-Object System.Drawing.Size(460, 25)
+    $profile5Button.BackColor = [System.Drawing.Color]::FromArgb(255, 220, 220)
+    $profile5Button.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+    $quickLaunchGroupBox.Controls.Add($profile5Button)
+
+    $profile5Button.Add_Click({
+            try {
+                Start-KeepAwake -Methods @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI') -Interval 30000 -Duration 0 -Incognito
+                $statusLabel.Text = "Status: Running (All Methods)"
+                $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
+                $statusDetailsLabel.Text = "Profile: All Methods | Maximum reliability with all techniques"
+                $startButton.Enabled = $false
+                $stopButton.Enabled = $true
+                $tabControl.SelectedIndex = 0
+            }
+            catch {
+                [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
+            }
+        })
+    #endregion
+
+    #region Control Buttons
     # Start button
     $startButton = New-Object System.Windows.Forms.Button
-    $startButton.Text = "Start Jiggling"
-    $startButton.Location = New-Object System.Drawing.Point(50, 360)
-    $startButton.Size = New-Object System.Drawing.Size(100, 30)
+    $startButton.Text = "> Start Jiggling"
+    $startButton.Location = New-Object System.Drawing.Point(50, 445)
+    $startButton.Size = New-Object System.Drawing.Size(150, 40)
+    $startButton.BackColor = [System.Drawing.Color]::FromArgb(76, 175, 80)
+    $startButton.ForeColor = [System.Drawing.Color]::White
+    $startButton.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+    $startButton.FlatStyle = "Flat"
     $startButton.Add_Click({
             try {
-                $interval = [int]$intervalTextBox.Text
-                $duration = [int]$durationTextBox.Text
-                $incognito = $incognitoCheckbox.Checked
+                if ($tabControl.SelectedIndex -eq 0) {
+                    # Basic mode
+                    $interval = [int]$intervalTextBox.Text
+                    $duration = [int]$durationTextBox.Text
+                    $pattern = $patternComboBox.SelectedItem.ToString()
+                    $incognito = $incognitoCheckbox.Checked
 
-                if ($advancedModeCheckbox.Checked) {
+                    # Determine mouse methods based on selection
+                    if ($mouseTypeComboBox.SelectedIndex -eq 1) {
+                        # Hardware only
+                        Start-KeepAwake -Methods @('MouseHardware') -Interval $interval -Duration $duration -Incognito:$incognito
+                        $statusDetailsLabel.Text = "Mode: Basic | Pattern: $pattern | Method: Hardware Mouse"
+                    }
+                    elseif ($mouseTypeComboBox.SelectedIndex -eq 2) {
+                        # Both methods
+                        Start-KeepAwake -Methods @('MouseSoftware', 'MouseHardware') -Interval $interval -Duration $duration -Incognito:$incognito
+                        $statusDetailsLabel.Text = "Mode: Basic | Pattern: $pattern | Method: Both (Software + Hardware)"
+                    }
+                    else {
+                        # Software (standard)
+                        Start-PSMouseJiggler -Interval $interval -MovementPattern $pattern -Duration $duration -Incognito:$incognito
+                        $statusDetailsLabel.Text = "Mode: Basic | Pattern: $pattern | Method: Software Mouse"
+                    }
+
+                    $statusLabel.Text = "Status: Running"
+                    $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
+                }
+                else {
+                    # Advanced mode
                     $methods = @()
                     if ($mouseSoftwareCheckbox.Checked) { $methods += 'MouseSoftware' }
                     if ($mouseHardwareCheckbox.Checked) { $methods += 'MouseHardware' }
@@ -369,20 +775,21 @@ function Show-PSMouseJigglerGUI {
                         return
                     }
 
+                    $interval = [int]$advIntervalTextBox.Text
+                    $duration = [int]$advDurationTextBox.Text
+                    $incognito = $advIncognitoCheckbox.Checked
+
                     Start-KeepAwake -Methods $methods -Interval $interval -Duration $duration -Incognito:$incognito
-                    $statusLabel.Text = "Status: Running (Advanced Mode)"
-                }
-                else {
-                    $pattern = $patternComboBox.SelectedItem.ToString()
-                    Start-PSMouseJiggler -Interval $interval -MovementPattern $pattern -Duration $duration -Incognito:$incognito
-                    $statusLabel.Text = "Status: Running ($pattern)"
+                    $statusLabel.Text = "Status: Running (Advanced)"
+                    $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
+                    $statusDetailsLabel.Text = "Mode: Advanced | Methods: $($methods -join ', ')"
                 }
 
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
 
                 # If incognito mode is enabled, minimize the form
-                if ($incognito) {
+                if ($incognito -or $advIncognitoCheckbox.Checked) {
                     $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
                     $form.ShowInTaskbar = $false
                 }
@@ -395,17 +802,23 @@ function Show-PSMouseJigglerGUI {
 
     # Stop button
     $stopButton = New-Object System.Windows.Forms.Button
-    $stopButton.Text = "Stop Jiggling"
-    $stopButton.Location = New-Object System.Drawing.Point(200, 360)
-    $stopButton.Size = New-Object System.Drawing.Size(100, 30)
+    $stopButton.Text = "[] Stop Jiggling"
+    $stopButton.Location = New-Object System.Drawing.Point(230, 445)
+    $stopButton.Size = New-Object System.Drawing.Size(150, 40)
     $stopButton.Enabled = $false
+    $stopButton.BackColor = [System.Drawing.Color]::FromArgb(244, 67, 54)
+    $stopButton.ForeColor = [System.Drawing.Color]::White
+    $stopButton.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+    $stopButton.FlatStyle = "Flat"
     $stopButton.Add_Click({
             Stop-PSMouseJiggler
             $statusLabel.Text = "Status: Stopped"
+            $statusLabel.ForeColor = [System.Drawing.Color]::DarkRed
+            $statusDetailsLabel.Text = "Ready to start mouse jiggling"
             $startButton.Enabled = $true
             $stopButton.Enabled = $false
 
-            # Restore form if it was minimized in incognito mode
+            # Restore form if it was minimized
             if ($form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
                 $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
                 $form.ShowInTaskbar = $true
@@ -414,12 +827,58 @@ function Show-PSMouseJigglerGUI {
         })
     $form.Controls.Add($stopButton)
 
+    # Help button
+    $helpButton = New-Object System.Windows.Forms.Button
+    $helpButton.Text = "? Help"
+    $helpButton.Location = New-Object System.Drawing.Point(410, 445)
+    $helpButton.Size = New-Object System.Drawing.Size(100, 40)
+    $helpButton.BackColor = [System.Drawing.Color]::FromArgb(158, 158, 158)
+    $helpButton.ForeColor = [System.Drawing.Color]::White
+    $helpButton.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+    $helpButton.FlatStyle = "Flat"
+    $helpButton.Add_Click({
+            $helpMessage = @"
+PSMouseJiggler Help
+
+BASIC MODE:
+- Choose movement pattern (Random recommended)
+- Set interval between movements (1000ms = 1 second)
+- Set duration (0 = run until stopped)
+- Choose mouse input method:
+  * Software: Standard method (most compatible)
+  * Hardware: Low-level input (better for strict policies)
+  * Both: Maximum reliability
+
+ADVANCED MODE:
+- Select multiple methods for maximum effectiveness
+- Mouse methods prevent screen timeout
+- Keyboard sends non-disruptive F15 key
+- System API directly controls Windows power settings
+- Longer interval recommended (30 seconds)
+
+QUICK LAUNCH:
+- Pre-configured profiles for common scenarios
+- One-click start with optimal settings
+- All profiles use incognito mode
+
+INCOGNITO MODE:
+- Minimizes window when started
+- Clears console output
+- Runs discreetly in background
+"@
+            [System.Windows.Forms.MessageBox]::Show($helpMessage, "PSMouseJiggler Help", "OK", "Information")
+        })
+    $form.Controls.Add($helpButton)
+    #endregion
+
     # Timer to update status
     $timer = New-Object System.Windows.Forms.Timer
     $timer.Interval = 1000
     $timer.Add_Tick({
             if (-not $script:JigglingActive -and $stopButton.Enabled) {
                 $statusLabel.Text = "Status: Stopped"
+                $statusLabel.ForeColor = [System.Drawing.Color]::DarkRed
+                $statusDetailsLabel.Text = "Ready to start mouse jiggling"
                 $startButton.Enabled = $true
                 $stopButton.Enabled = $false
 
@@ -438,12 +897,14 @@ function Show-PSMouseJigglerGUI {
             # Check if jiggling is already active when GUI opens
             if ($script:JigglingActive) {
                 $statusLabel.Text = "Status: Running (Started from Console)"
+                $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
+                $statusDetailsLabel.Text = "Started from command line - use Stop button to halt"
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
 
                 # Restore form if it was minimized
                 if ($form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
-                    $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
+                    $form.WindowState = [System.Drawing.Color]::Normal
                     $form.ShowInTaskbar = $true
                 }
             }
