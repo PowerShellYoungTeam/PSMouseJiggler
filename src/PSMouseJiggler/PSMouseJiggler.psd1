@@ -124,7 +124,7 @@
             # ReleaseNotes of this module
             ReleaseNotes             = @'
             Version 1.0.4
-            Add Incognito Mode feature for discreet operation in GUI and console by @PowerShellYoungTeam in #13
+            Add Incognito Mode feature for discrete operation in GUI and console by @PowerShellYoungTeam in #13
                 
             
                 Version 1.0.3
