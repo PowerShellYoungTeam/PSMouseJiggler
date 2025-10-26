@@ -15,6 +15,7 @@ PSMouseJiggler is a PowerShell module designed to simulate mouse movements to pr
 - **Configuration Management**: Load and save user preferences for a personalized experience.
 - **PowerShell Module**: Properly structured as a PowerShell module for easy installation and management.
 - **Testing Framework**: Includes unit tests to ensure core functionalities work as expected.
+- **Incognito Mode**: Minimizes GUI and clears console for discreet operation.
 
 ## Getting Started
 
