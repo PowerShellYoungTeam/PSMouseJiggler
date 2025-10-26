@@ -7,7 +7,7 @@
     RootModule             = 'PSMouseJiggler.psm1'
 
     # Version number of this module.
-    ModuleVersion          = '1.0.4'
+    ModuleVersion          = '1.1.0'
 
     # Supported PSEditions
     CompatiblePSEditions   = @('Desktop', 'Core')
@@ -123,9 +123,35 @@
 
             # ReleaseNotes of this module
             ReleaseNotes             = @'
+                Version 1.1.0 (October 2025)
+                - Added modern tabbed GUI interface with three main tabs:
+                    - Basic Mode: Simple mouse jiggling controls
+                    - Advanced Mode: Multi-method keep-awake configuration
+                    - Quick Launch: Five pre-configured profiles for common scenarios
+                - Implemented Quick Launch profiles:
+                    - [Mouse] Basic Discrete: Random movements with incognito mode
+                    - [Lock] Maximum Security: Hardware + System API for strict policies
+                    - [Key] Keyboard Only: Non-visual keep-awake method
+                    - [API] System API Only: Minimal resource usage
+                    - [MAX] All Methods: Maximum reliability
+                - Added advanced keep-awake methods:
+                    - Hardware-level mouse input using SendInput API
+                    - Keyboard input simulation (F15 key presses)
+                    - Direct Windows power management (SetThreadExecutionState API)
+                - Created Start-KeepAwake function for multi-method keep-awake
+                - Added -Incognito parameter to Start-PSMouseJiggler and Start-KeepAwake
+                - Implemented Prevent-SystemIdle, Send-KeyboardInput, and Send-MouseInput functions
+                - Enhanced GUI with incognito mode support (minimizes window, clears console)
+                - Fixed emoji encoding issues in GUI (replaced with text labels)
+                - Improved GUI state management for reopening after console start
+                - Renamed scheduled task functions with PSMJ prefix (already in v1.0.3)
+                - Comprehensive documentation updates across all README and USAGE files
+                - Updated Get-Help comments with new parameters and examples
+                - Requires .NET Framework 4.7.2+ for P/Invoke features
+
                 Version 1.0.4
                 - Add Incognito Mode feature for discrete operation in GUI and console by @PowerShellYoungTeam in #13
-            
+
                 Version 1.0.3
                 - Renamed scheduled task functions to prevent conflicts with other modules:
                     - Get-ScheduledTasks → Get-PSMJScheduledTasks
