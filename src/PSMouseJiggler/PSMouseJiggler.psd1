@@ -123,8 +123,9 @@
 
             # ReleaseNotes of this module
             ReleaseNotes             = @'
-            Version 1.0.4
-            Add Incognito Mode feature for discrete operation in GUI and console by @PowerShellYoungTeam in #13
+                Version 1.0.4
+                - Add Incognito Mode feature for discrete operation in GUI and console by @PowerShellYoungTeam in #13
+            
                 Version 1.0.3
                 - Renamed scheduled task functions to prevent conflicts with other modules:
                     - Get-ScheduledTasks → Get-PSMJScheduledTasks
