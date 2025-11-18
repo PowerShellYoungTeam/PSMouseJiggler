@@ -1,0 +1,132 @@
+name: Cross-Platform Tests
+
+on:
+    push:
+        branches: [main, develop, 17-make-cross-platform]
+    pull_request:
+        branches: [main, develop]
+    workflow_dispatch:
+
+jobs:
+    test:
+        name: Test on ${{ matrix.os }}
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [windows-latest, ubuntu-latest, macos-latest]
+                include:
+                    - os: windows-latest
+                      platform_tag: Windows
+                    - os: ubuntu-latest
+                      platform_tag: Linux
+                    - os: macos-latest
+                      platform_tag: MacOS
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup PowerShell Core
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "18"
+
+            - name: Install Pester (if not present)
+              shell: pwsh
+              run: |
+                  if (-not (Get-Module -ListAvailable -Name Pester | Where-Object { $_.Version -ge '5.0.0' })) {
+                    Install-Module -Name Pester -MinimumVersion 5.0.0 -Scope CurrentUser -Force -SkipPublisherCheck
+                  }
+                  Import-Module Pester -MinimumVersion 5.0.0
+
+            - name: Install Linux dependencies (Linux only)
+              if: runner.os == 'Linux'
+              shell: bash
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y xdotool
+                  echo "Installed xdotool for Linux testing"
+
+            - name: Install macOS dependencies (macOS only)
+              if: runner.os == 'macOS'
+              shell: bash
+              run: |
+                  brew install cliclick || echo "cliclick already installed or installation skipped"
+                  echo "Attempted cliclick installation for macOS testing"
+
+            - name: Display PowerShell version
+              shell: pwsh
+              run: |
+                  $PSVersionTable | Format-Table -AutoSize
+
+            - name: Display platform information
+              shell: pwsh
+              run: |
+                  Import-Module ./src/PSMouseJiggler/PSMouseJiggler.psd1 -Force
+                  Write-Host "Platform: $(Get-OperatingSystemPlatform)" -ForegroundColor Cyan
+                  Write-Host "Capabilities:" -ForegroundColor Cyan
+                  $capabilities = @('GUI', 'WindowsAPI', 'XDoTool', 'YDoTool', 'CliClick', 'SystemdInhibit', 'Caffeinate', 'ScheduledTasks', 'LaunchD', 'SystemdTimers')
+                  foreach ($cap in $capabilities) {
+                    $result = Test-PlatformCapability -Capability $cap
+                    $color = if ($result) { "Green" } else { "Gray" }
+                    Write-Host "  $cap : $result" -ForegroundColor $color
+                  }
+
+            - name: Run Pester tests (Platform-specific)
+              shell: pwsh
+              run: |
+                  $config = New-PesterConfiguration
+                  $config.Run.Path = './tests'
+                  $config.Run.PassThru = $true
+                  $config.Filter.Tag = @('Unit', 'Integration', '${{ matrix.platform_tag }}')
+                  $config.Filter.ExcludeTag = @('Manual')
+                  $config.Output.Verbosity = 'Detailed'
+                  $config.CodeCoverage.Enabled = $false
+
+                  $result = Invoke-Pester -Configuration $config
+
+                  if ($result.FailedCount -gt 0) {
+                    throw "$($result.FailedCount) test(s) failed"
+                  }
+
+            - name: Upload test results
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: test-results-${{ matrix.os }}
+                  path: |
+                      tests/TestResults.xml
+                      tests/*.log
+                  retention-days: 30
+
+    lint:
+        name: PSScriptAnalyzer Lint
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Install PSScriptAnalyzer
+              shell: pwsh
+              run: |
+                  Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force -SkipPublisherCheck
+
+            - name: Run PSScriptAnalyzer
+              shell: pwsh
+              run: |
+                  $results = Invoke-ScriptAnalyzer -Path ./src -Recurse -Settings PSGallery
+
+                  if ($results.Count -gt 0) {
+                    $results | Format-Table -AutoSize
+                    $errors = $results | Where-Object { $_.Severity -eq 'Error' }
+                    $warnings = $results | Where-Object { $_.Severity -eq 'Warning' }
+
+                    Write-Host "Found $($errors.Count) error(s) and $($warnings.Count) warning(s)" -ForegroundColor Yellow
+
+                    if ($errors.Count -gt 0) {
+                      throw "PSScriptAnalyzer found $($errors.Count) error(s)"
+                    }
+                  } else {
+                    Write-Host "PSScriptAnalyzer found no issues!" -ForegroundColor Green
+                  }

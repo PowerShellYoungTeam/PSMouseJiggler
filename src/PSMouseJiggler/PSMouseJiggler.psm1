@@ -1,46 +1,243 @@
 #
 # PSMouseJiggler Module
 # A PowerShell module to simulate mouse movements and prevent system idle
+# Version 2.0.0 - Cross-Platform Support
 #
 
-# Check for required assemblies
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
+#region Platform Detection and Compatibility
+
+<#
+.SYNOPSIS
+    Detects the current operating system platform.
+
+.DESCRIPTION
+    Returns 'Windows', 'Linux', or 'macOS' based on the current PowerShell environment.
+
+.OUTPUTS
+    String - The platform name ('Windows', 'Linux', or 'macOS')
+#>
+function Get-OperatingSystemPlatform {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+
+    # PowerShell 6+ has built-in platform detection variables
+    if ($PSVersionTable.PSVersion.Major -ge 6) {
+        if ($IsWindows) { return 'Windows' }
+        if ($IsLinux) { return 'Linux' }
+        if ($IsMacOS) { return 'macOS' }
+    }
+
+    # PowerShell 5.1 is Windows-only
+    return 'Windows'
+}
+
+<#
+.SYNOPSIS
+    Tests if a specific platform capability is available.
+
+.DESCRIPTION
+    Checks if the current platform supports specific features like GUI, P/Invoke, etc.
+
+.PARAMETER Capability
+    The capability to test: 'GUI', 'WindowsAPI', 'SystemdInhibit', 'Caffeinate', etc.
+
+.OUTPUTS
+    Boolean - True if the capability is available
+#>
+function Test-PlatformCapability {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('GUI', 'WindowsAPI', 'XDoTool', 'YDoTool', 'CliClick', 'SystemdInhibit', 'Caffeinate', 'ScheduledTasks', 'LaunchD', 'SystemdTimers')]
+        [string]$Capability
+    )
+
+    $platform = Get-OperatingSystemPlatform
+
+    switch ($Capability) {
+        'GUI' {
+            return ($platform -eq 'Windows')
+        }
+        'WindowsAPI' {
+            return ($platform -eq 'Windows')
+        }
+        'XDoTool' {
+            return ($platform -eq 'Linux') -and (Test-ExternalToolAvailable -ToolName 'xdotool')
+        }
+        'YDoTool' {
+            return ($platform -eq 'Linux') -and (Test-ExternalToolAvailable -ToolName 'ydotool')
+        }
+        'CliClick' {
+            return ($platform -eq 'macOS') -and (Test-ExternalToolAvailable -ToolName 'cliclick')
+        }
+        'SystemdInhibit' {
+            return ($platform -eq 'Linux') -and (Test-ExternalToolAvailable -ToolName 'systemd-inhibit')
+        }
+        'Caffeinate' {
+            return ($platform -eq 'macOS') -and (Test-ExternalToolAvailable -ToolName 'caffeinate')
+        }
+        'ScheduledTasks' {
+            return ($platform -eq 'Windows')
+        }
+        'LaunchD' {
+            return ($platform -eq 'macOS')
+        }
+        'SystemdTimers' {
+            return ($platform -eq 'Linux') -and (Test-ExternalToolAvailable -ToolName 'systemctl')
+        }
+    }
+
+    return $false
+}
+
+<#
+.SYNOPSIS
+    Tests if an external tool is available on the system.
+
+.DESCRIPTION
+    Checks if a command-line tool is installed and accessible in the PATH.
+
+.PARAMETER ToolName
+    The name of the tool to check (e.g., 'xdotool', 'cliclick', 'systemd-inhibit')
+
+.OUTPUTS
+    Boolean - True if the tool is available
+#>
+function Test-ExternalToolAvailable {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ToolName
+    )
+
+    try {
+        $null = Get-Command $ToolName -ErrorAction Stop
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+<#
+.SYNOPSIS
+    Displays installation instructions for missing dependencies.
+
+.DESCRIPTION
+    Provides clear guidance on how to install required tools for the current platform.
+
+.PARAMETER MissingTools
+    Array of missing tool names
+#>
+function Show-DependencyInstallInstructions {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$MissingTools
+    )
+
+    $platform = Get-OperatingSystemPlatform
+
+    Write-Host "`nMissing required dependencies: $($MissingTools -join ', ')" -ForegroundColor Yellow
+    Write-Host "`nTo install these tools, you can:" -ForegroundColor Cyan
+
+    switch ($platform) {
+        'Linux' {
+            Write-Host "`n1. Run the automated installer:" -ForegroundColor Green
+            Write-Host "   & (Join-Path `$PSScriptRoot 'Install-PSMouseJigglerDependencies.ps1')" -ForegroundColor White
+            Write-Host "`n2. Or install manually:" -ForegroundColor Green
+            foreach ($tool in $MissingTools) {
+                switch ($tool) {
+                    'xdotool' {
+                        Write-Host "   Ubuntu/Debian: sudo apt-get install xdotool" -ForegroundColor White
+                        Write-Host "   Fedora/RHEL:   sudo dnf install xdotool" -ForegroundColor White
+                        Write-Host "   Arch:          sudo pacman -S xdotool" -ForegroundColor White
+                    }
+                    'ydotool' {
+                        Write-Host "   ydotool (Wayland support - optional):" -ForegroundColor White
+                        Write-Host "   Follow instructions at: https://github.com/ReimuNotMoe/ydotool" -ForegroundColor White
+                    }
+                    'systemd-inhibit' {
+                        Write-Host "   systemd-inhibit: Usually pre-installed with systemd" -ForegroundColor White
+                    }
+                }
+            }
+        }
+        'macOS' {
+            Write-Host "`n1. Run the automated installer:" -ForegroundColor Green
+            Write-Host "   & (Join-Path `$PSScriptRoot 'Install-PSMouseJigglerDependencies.ps1')" -ForegroundColor White
+            Write-Host "`n2. Or install manually via Homebrew:" -ForegroundColor Green
+            foreach ($tool in $MissingTools) {
+                switch ($tool) {
+                    'cliclick' {
+                        Write-Host "   brew install cliclick" -ForegroundColor White
+                    }
+                    'caffeinate' {
+                        Write-Host "   caffeinate: Built into macOS (should already be available)" -ForegroundColor White
+                    }
+                }
+            }
+            Write-Host "`nNote: You may need to grant accessibility permissions in System Preferences > Security & Privacy > Privacy > Accessibility" -ForegroundColor Yellow
+        }
+    }
+
+    Write-Host "`nFor more information, see: https://github.com/PowerShellYoungTeam/PSMouseJiggler/blob/main/docs/PLATFORM_SUPPORT.md" -ForegroundColor Cyan
+}
+
+#endregion
+
+#region Assembly Loading
+
+# Conditionally load Windows-specific assemblies
+$platform = Get-OperatingSystemPlatform
+if ($platform -eq 'Windows') {
+    try {
+        Add-Type -AssemblyName System.Windows.Forms
+        Add-Type -AssemblyName System.Drawing
+        Write-Verbose "Loaded Windows Forms and Drawing assemblies"
+    }
+    catch {
+        Write-Warning "Failed to load Windows Forms assemblies: $($_.Exception.Message)"
+    }
+}
+else {
+    Write-Verbose "Non-Windows platform detected. Windows Forms GUI will not be available. Use Show-PSMouseJigglerTUI instead."
+}
+
+#endregion
 
 # Global variable to track jiggling state
 $script:JigglingJob = $null
 $script:JigglingActive = $false
 
-#region Core Mouse Jiggling Functions
+#region Platform-Specific Implementations
+
+#region Windows-Specific Functions
 
 <#
 .SYNOPSIS
-    Starts the PSMouseJiggler to simulate mouse movements.
+    Starts the PSMouseJiggler on Windows using Windows Forms API.
 
 .DESCRIPTION
-    Starts mouse jiggling with specified interval and movement pattern to prevent the system from going idle.
+    Windows-specific implementation using System.Windows.Forms for mouse control.
+    This is the original implementation moved to a platform-specific function.
 
 .PARAMETER Interval
-    Time in milliseconds between mouse movements. Default is 1000ms.
+    Time in milliseconds between mouse movements.
 
 .PARAMETER MovementPattern
-    The pattern for mouse movement. Valid values: 'Random', 'Horizontal', 'Vertical', 'Circular'. Default is 'Random'.
+    The pattern for mouse movement.
 
 .PARAMETER Duration
-    Duration in seconds to run the jiggler. If not specified, runs indefinitely until stopped.
+    Duration in seconds to run the jiggler.
 
 .PARAMETER Incognito
-When enabled, clears the console after starting to maintain privacy/discretion.
-
-.EXAMPLE
-    Start-PSMouseJiggler
-    Starts mouse jiggling with default settings.
-
-.EXAMPLE
-    Start-PSMouseJiggler -Interval 2000 -MovementPattern 'Circular' -Duration 300
-    Starts mouse jiggling every 2 seconds using circular pattern for 5 minutes.
+    When enabled, clears the console after starting.
 #>
-function Start-PSMouseJiggler {
+function Start-PSMouseJiggler-Windows {
     [CmdletBinding()]
     param (
         [Parameter()]
@@ -62,7 +259,7 @@ function Start-PSMouseJiggler {
         return
     }
 
-    Write-Host "Starting PSMouseJiggler with $MovementPattern pattern, interval: $Interval ms" -ForegroundColor Green
+    Write-Host "Starting PSMouseJiggler (Windows) with $MovementPattern pattern, interval: $Interval ms" -ForegroundColor Green
 
     $script:JigglingActive = $true
     $startTime = Get-Date
@@ -127,16 +324,12 @@ function Start-PSMouseJiggler {
 
 <#
 .SYNOPSIS
-    Stops the PSMouseJiggler.
+    Stops the PSMouseJiggler on Windows.
 
 .DESCRIPTION
-    Stops any running mouse jiggling job.
-
-.EXAMPLE
-    Stop-PSMouseJiggler
-    Stops the currently running mouse jiggler.
+    Windows-specific implementation for stopping the jiggler.
 #>
-function Stop-PSMouseJiggler {
+function Stop-PSMouseJiggler-Windows {
     [CmdletBinding()]
     param()
 
@@ -159,6 +352,1143 @@ function Stop-PSMouseJiggler {
 
     $script:JigglingActive = $false
     Write-Host "PSMouseJiggler stopped." -ForegroundColor Green
+}
+
+<#
+.SYNOPSIS
+    Moves the mouse cursor on Windows.
+
+.DESCRIPTION
+    Windows-specific implementation using System.Windows.Forms.Cursor.
+
+.PARAMETER X
+    Horizontal offset in pixels.
+
+.PARAMETER Y
+    Vertical offset in pixels.
+#>
+function Move-Mouse-Windows {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [int]$X,
+
+        [Parameter(Mandatory)]
+        [int]$Y
+    )
+
+    $currentPos = [System.Windows.Forms.Cursor]::Position
+    $newPos = [System.Drawing.Point]::new($currentPos.X + $X, $currentPos.Y + $Y)
+    [System.Windows.Forms.Cursor]::Position = $newPos
+}
+
+<#
+.SYNOPSIS
+    Starts keep-awake functionality on Windows.
+
+.DESCRIPTION
+    Windows-specific implementation using P/Invoke and Windows APIs.
+
+.PARAMETER Methods
+    Array of methods to use for keeping system awake.
+
+.PARAMETER Interval
+    Time in milliseconds between keep-awake actions.
+
+.PARAMETER Duration
+    Duration in seconds to run keep-awake.
+
+.PARAMETER Incognito
+    When enabled, clears the console after starting.
+#>
+function Start-KeepAwake-Windows {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [ValidateSet('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI', 'All')]
+        [string[]]$Methods = @('All'),
+
+        [Parameter()]
+        [int]$Interval = 30000,
+
+        [Parameter()]
+        [int]$Duration = 0,
+
+        [Parameter()]
+        [switch]$Incognito
+    )
+
+    if ($script:JigglingActive) {
+        Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
+        return
+    }
+
+    Write-Host "Starting PSMouseJiggler KeepAwake (Windows) with multiple methods, interval: $Interval ms" -ForegroundColor Green
+
+    $script:JigglingActive = $true
+    $startTime = Get-Date
+
+    # If 'All' is specified, use all methods
+    if ($Methods -contains 'All') {
+        $Methods = @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI')
+    }
+
+    # Start the prevention immediately using the API
+    if ($Methods -contains 'SystemAPI') {
+        Prevent-SystemIdle
+    }
+
+    $script:JigglingJob = Start-Job -ScriptBlock {
+        param($Interval, $Methods, $Duration, $StartTime)
+
+        # Import required assemblies
+        Add-Type -AssemblyName System.Windows.Forms
+        Add-Type -AssemblyName System.Drawing
+
+        # Define required P/Invoke structures and methods
+        Add-Type -TypeDefinition @"
+        using System;
+        using System.Runtime.InteropServices;
+
+        public static class DisplayState {
+            [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+            public static extern uint SetThreadExecutionState(uint esFlags);
+
+            public const uint ES_CONTINUOUS = 0x80000000;
+            public const uint ES_SYSTEM_REQUIRED = 0x00000001;
+            public const uint ES_DISPLAY_REQUIRED = 0x00000002;
+        }
+
+        public static class MouseSimulator {
+            [StructLayout(LayoutKind.Sequential)]
+            public struct MOUSEINPUT {
+                public int dx;
+                public int dy;
+                public uint mouseData;
+                public uint dwFlags;
+                public uint time;
+                public IntPtr dwExtraInfo;
+            }
+
+            [StructLayout(LayoutKind.Sequential)]
+            public struct INPUT {
+                public uint type;
+                public MOUSEINPUT mi;
+            }
+
+            [DllImport("user32.dll", SetLastError = true)]
+            public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+            public const int INPUT_MOUSE = 0;
+            public const int MOUSEEVENTF_MOVE = 0x0001;
+        }
+"@
+
+        $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
+
+        while ((Get-Date) -lt $endTime) {
+            # Randomly select a method from the provided methods
+            $method = $Methods | Get-Random
+
+            switch ($method) {
+                'MouseSoftware' {
+                    # Move mouse using software method
+                    $currentPos = [System.Windows.Forms.Cursor]::Position
+                    $xOffset = Get-Random -Minimum -10 -Maximum 11
+                    $yOffset = Get-Random -Minimum -10 -Maximum 11
+                    $newPos = [System.Drawing.Point]::new($currentPos.X + $xOffset, $currentPos.Y + $yOffset)
+                    [System.Windows.Forms.Cursor]::Position = $newPos
+
+                    # Move back to original position after a short delay to minimize disruption
+                    Start-Sleep -Milliseconds 100
+                    [System.Windows.Forms.Cursor]::Position = $currentPos
+                }
+                'MouseHardware' {
+                    # Use hardware-level mouse movement
+                    $mouseInputStructure = New-Object MouseSimulator+INPUT
+                    $mouseInputStructure.type = [MouseSimulator]::INPUT_MOUSE
+                    $mouseInputStructure.mi.dx = Get-Random -Minimum -5 -Maximum 6
+                    $mouseInputStructure.mi.dy = Get-Random -Minimum -5 -Maximum 6
+                    $mouseInputStructure.mi.dwFlags = [MouseSimulator]::MOUSEEVENTF_MOVE
+                    $mouseInputStructure.mi.time = 0
+                    $mouseInputStructure.mi.dwExtraInfo = [IntPtr]::Zero
+
+                    $inputArray = @($mouseInputStructure)
+                    [MouseSimulator]::SendInput(1, $inputArray, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT])) | Out-Null
+                }
+                'Keyboard' {
+                    # Press a non-disruptive key (F15 is rarely used)
+                    [System.Windows.Forms.SendKeys]::SendWait("{F15}")
+                }
+                'SystemAPI' {
+                    # Directly tell Windows to stay awake
+                    [DisplayState]::SetThreadExecutionState(
+                        [DisplayState]::ES_CONTINUOUS -bor
+                        [DisplayState]::ES_SYSTEM_REQUIRED -bor
+                        [DisplayState]::ES_DISPLAY_REQUIRED)
+                }
+            }
+
+            # Wait for the specified interval
+            Start-Sleep -Milliseconds $Interval
+        }
+
+        # Reset execution state if we used the API
+        if ($Methods -contains 'SystemAPI') {
+            [DisplayState]::SetThreadExecutionState([DisplayState]::ES_CONTINUOUS)
+        }
+    } -ArgumentList $Interval, $Methods, $Duration, $startTime
+
+    if ($Duration -gt 0) {
+        Write-Host "PSMouseJiggler KeepAwake will run for $Duration seconds" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "PSMouseJiggler KeepAwake is running indefinitely. Use Stop-PSMouseJiggler to stop." -ForegroundColor Yellow
+    }
+
+    # Clear console if incognito mode is enabled
+    if ($Incognito) {
+        Clear-Host
+    }
+}
+
+#endregion
+
+#region Linux-Specific Functions
+
+<#
+.SYNOPSIS
+    Helper function to invoke xdotool or ydotool commands.
+
+.DESCRIPTION
+    Detects whether to use xdotool (X11) or ydotool (Wayland) and executes the command.
+    Includes version detection and warnings for outdated tools.
+
+.PARAMETER Command
+    The command to execute (without the tool prefix).
+
+.EXAMPLE
+    Invoke-XDoTool -Command "mousemove_relative -- 10 5"
+#>
+function Invoke-XDoTool {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [string]$Command
+    )
+
+    # Check for xdotool first (X11)
+    if (Get-Command xdotool -ErrorAction SilentlyContinue) {
+        # Check version and warn if outdated
+        try {
+            $versionOutput = & xdotool --version 2>&1 | Select-Object -First 1
+            if ($versionOutput -match 'xdotool version (\d+)\.(\d+)') {
+                $major = [int]$matches[1]
+                $minor = [int]$matches[2]
+                $version = "$major.$minor"
+
+                if ($major -lt 3 -or ($major -eq 3 -and $minor -lt 20180117)) {
+                    Write-Warning "xdotool version $version detected. Version 3.20180117 or higher recommended for best compatibility."
+                }
+                Write-Verbose "Using xdotool version $version"
+            }
+        }
+        catch {
+            Write-Verbose "Could not determine xdotool version"
+        }
+
+        $fullCommand = "xdotool $Command"
+        Write-Verbose "Executing: $fullCommand"
+        Invoke-Expression $fullCommand
+    }
+    # Check for ydotool (Wayland)
+    elseif (Get-Command ydotool -ErrorAction SilentlyContinue) {
+        # Check version and warn if outdated
+        try {
+            $versionOutput = & ydotool --version 2>&1 | Select-Object -First 1
+            if ($versionOutput -match 'ydotool version (\d+)\.(\d+)\.(\d+)') {
+                $version = "$($matches[1]).$($matches[2]).$($matches[3])"
+
+                # Warn if version is below 1.0.0
+                if ([int]$matches[1] -lt 1) {
+                    Write-Warning "ydotool version $version detected. Version 1.0.0 or higher recommended for stability."
+                }
+                Write-Verbose "Using ydotool version $version"
+            }
+        }
+        catch {
+            Write-Verbose "Could not determine ydotool version"
+        }
+
+        # Note: ydotool syntax is slightly different, need to adapt
+        $fullCommand = "ydotool $Command"
+        Write-Verbose "Executing: $fullCommand"
+        Invoke-Expression $fullCommand
+    }
+    else {
+        Write-Error "Neither xdotool nor ydotool found. Please install one of these tools."
+        throw "Required tool not found"
+    }
+}
+
+<#
+.SYNOPSIS
+    Starts the PSMouseJiggler on Linux using xdotool/ydotool.
+
+.DESCRIPTION
+    Linux-specific implementation using external tools for mouse control.
+    Supports both X11 (xdotool) and Wayland (ydotool) display servers.
+
+.PARAMETER Interval
+    Time in milliseconds between mouse movements.
+
+.PARAMETER MovementPattern
+    The pattern for mouse movement.
+
+.PARAMETER Duration
+    Duration in seconds to run the jiggler.
+
+.PARAMETER Incognito
+    When enabled, clears the console after starting.
+#>
+function Start-PSMouseJiggler-Linux {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [int]$Interval = 1000,
+
+        [Parameter()]
+        [ValidateSet('Random', 'Horizontal', 'Vertical', 'Circular')]
+        [string]$MovementPattern = 'Random',
+
+        [Parameter()]
+        [int]$Duration = 0,
+
+        [Parameter()]
+        [switch]$Incognito
+    )
+
+    if ($script:JigglingActive) {
+        Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
+        return
+    }
+
+    # Verify xdotool or ydotool is available
+    if (-not (Test-PlatformCapability -Capability 'XDoTool')) {
+        Write-Error "Linux support requires xdotool (X11) or ydotool (Wayland). Install using your package manager:"
+        Write-Host "  Ubuntu/Debian: sudo apt-get install xdotool" -ForegroundColor Yellow
+        Write-Host "  Fedora: sudo dnf install xdotool" -ForegroundColor Yellow
+        Write-Host "  Arch: sudo pacman -S xdotool" -ForegroundColor Yellow
+        Write-Host "  For Wayland: Install ydotool from your package manager" -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "Starting PSMouseJiggler (Linux) with $MovementPattern pattern, interval: $Interval ms" -ForegroundColor Green
+
+    $script:JigglingActive = $true
+    $startTime = Get-Date
+
+    $script:JigglingJob = Start-Job -ScriptBlock {
+        param($Interval, $MovementPattern, $Duration, $StartTime, $ModulePath)
+
+        # Import helper function in job context
+        . $ModulePath
+
+        $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
+
+        while ((Get-Date) -lt $endTime) {
+            # Determine movement pattern
+            switch ($MovementPattern) {
+                'Random' {
+                    $xOffset = Get-Random -Minimum -10 -Maximum 11
+                    $yOffset = Get-Random -Minimum -10 -Maximum 11
+                }
+                'Horizontal' {
+                    $xOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
+                    $yOffset = 0
+                }
+                'Vertical' {
+                    $xOffset = 0
+                    $yOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
+                }
+                'Circular' {
+                    $angle = (Get-Date).Millisecond / 1000 * 2 * [Math]::PI
+                    $xOffset = [Math]::Round([Math]::Sin($angle) * 10)
+                    $yOffset = [Math]::Round([Math]::Cos($angle) * 10)
+                }
+                default {
+                    $xOffset = Get-Random -Minimum -5 -Maximum 6
+                    $yOffset = Get-Random -Minimum -5 -Maximum 6
+                }
+            }
+
+            # Move the mouse using xdotool/ydotool
+            try {
+                if (Get-Command xdotool -ErrorAction SilentlyContinue) {
+                    & xdotool mousemove_relative -- $xOffset $yOffset 2>&1 | Out-Null
+                }
+                elseif (Get-Command ydotool -ErrorAction SilentlyContinue) {
+                    # ydotool uses different syntax: mousemove -x X -y Y (absolute positioning)
+                    # For relative movement, we need to get current position first
+                    # This is a limitation of ydotool - we'll do best effort
+                    & ydotool mousemove -r $xOffset $yOffset 2>&1 | Out-Null
+                }
+            }
+            catch {
+                Write-Warning "Failed to move mouse: $_"
+            }
+
+            # Wait for the specified interval
+            Start-Sleep -Milliseconds $Interval
+        }
+    } -ArgumentList $Interval, $MovementPattern, $Duration, $startTime, $PSCommandPath
+
+    if ($Duration -gt 0) {
+        Write-Host "PSMouseJiggler will run for $Duration seconds" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "PSMouseJiggler is running indefinitely. Use Stop-PSMouseJiggler to stop." -ForegroundColor Yellow
+    }
+
+    # Clear console if incognito mode is enabled
+    if ($Incognito) {
+        Clear-Host
+    }
+}
+
+<#
+.SYNOPSIS
+    Stops the PSMouseJiggler on Linux.
+
+.DESCRIPTION
+    Linux-specific implementation for stopping the jiggler.
+    Handles job cleanup and state management.
+#>
+function Stop-PSMouseJiggler-Linux {
+    [CmdletBinding()]
+    param()
+
+    if (-not $script:JigglingActive) {
+        Write-Warning "PSMouseJiggler is not currently running."
+        return
+    }
+
+    if ($script:JigglingJob) {
+        if ($script:JigglingJob -is [System.Management.Automation.Job]) {
+            Stop-Job -Job $script:JigglingJob -ErrorAction SilentlyContinue
+            Remove-Job -Job $script:JigglingJob -ErrorAction SilentlyContinue
+        }
+        else {
+            Write-Verbose "Stopping non-Job object (likely a test mock)"
+        }
+        $script:JigglingJob = $null
+    }
+
+    $script:JigglingActive = $false
+    Write-Host "PSMouseJiggler stopped." -ForegroundColor Green
+}
+
+<#
+.SYNOPSIS
+    Moves the mouse cursor on Linux.
+
+.DESCRIPTION
+    Linux-specific implementation using xdotool or ydotool for cursor movement.
+    Uses relative positioning to move the cursor by the specified offsets.
+
+.PARAMETER X
+    Horizontal offset in pixels.
+
+.PARAMETER Y
+    Vertical offset in pixels.
+#>
+function Move-Mouse-Linux {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [int]$X,
+
+        [Parameter(Mandatory)]
+        [int]$Y
+    )
+
+    try {
+        if (Get-Command xdotool -ErrorAction SilentlyContinue) {
+            # xdotool supports relative movement with mousemove_relative
+            & xdotool mousemove_relative -- $X $Y 2>&1 | Out-Null
+            Write-Verbose "Moved mouse using xdotool: X=$X, Y=$Y"
+        }
+        elseif (Get-Command ydotool -ErrorAction SilentlyContinue) {
+            # ydotool uses -r flag for relative movement
+            & ydotool mousemove -r $X $Y 2>&1 | Out-Null
+            Write-Verbose "Moved mouse using ydotool: X=$X, Y=$Y"
+        }
+        else {
+            Write-Error "Neither xdotool nor ydotool found. Please install one of these tools."
+        }
+    }
+    catch {
+        Write-Error "Failed to move mouse on Linux: $_"
+    }
+}
+
+<#
+.SYNOPSIS
+    Starts keep-awake functionality on Linux.
+
+.DESCRIPTION
+    Linux-specific implementation using xdotool for mouse simulation and systemd-inhibit for idle prevention.
+    Note: MouseHardware and Keyboard methods are mapped to MouseSoftware on Linux.
+
+.PARAMETER Methods
+    Array of methods to use. Supported on Linux: MouseSoftware, SystemAPI.
+
+.PARAMETER Interval
+    Time in milliseconds between keep-awake actions.
+
+.PARAMETER Duration
+    Duration in seconds to run keep-awake.
+
+.PARAMETER Incognito
+    When enabled, clears the console after starting.
+#>
+function Start-KeepAwake-Linux {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [ValidateSet('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI', 'All')]
+        [string[]]$Methods = @('All'),
+
+        [Parameter()]
+        [int]$Interval = 30000,
+
+        [Parameter()]
+        [int]$Duration = 0,
+
+        [Parameter()]
+        [switch]$Incognito
+    )
+
+    if ($script:JigglingActive) {
+        Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
+        return
+    }
+
+    Write-Host "Starting PSMouseJiggler KeepAwake (Linux) with multiple methods, interval: $Interval ms" -ForegroundColor Green
+
+    # Map unsupported methods to MouseSoftware on Linux
+    if ($Methods -contains 'All') {
+        $Methods = @('MouseSoftware', 'SystemAPI')
+    }
+    else {
+        # Map MouseHardware and Keyboard to MouseSoftware
+        $Methods = $Methods | ForEach-Object {
+            if ($_ -in @('MouseHardware', 'Keyboard')) {
+                Write-Warning "$_ method not directly supported on Linux. Using MouseSoftware instead."
+                'MouseSoftware'
+            }
+            else {
+                $_
+            }
+        } | Select-Object -Unique
+    }
+
+    $script:JigglingActive = $true
+    $startTime = Get-Date
+
+    # If using SystemAPI, start systemd-inhibit wrapper
+    $inhibitJob = $null
+    if ($Methods -contains 'SystemAPI') {
+        if (Get-Command systemd-inhibit -ErrorAction SilentlyContinue) {
+            Write-Verbose "Starting systemd-inhibit to prevent idle"
+
+            # Start systemd-inhibit in background
+            $inhibitDuration = if ($Duration -gt 0) { $Duration } else { 86400 } # Default to 24 hours if indefinite
+            $inhibitJob = Start-Job -ScriptBlock {
+                param($Duration)
+                # systemd-inhibit blocks idle, sleep, and shutdown
+                & systemd-inhibit --what=idle:sleep --who="PSMouseJiggler" --why="Preventing system idle" sleep $Duration 2>&1
+            } -ArgumentList $inhibitDuration
+
+            Write-Verbose "systemd-inhibit started (Job ID: $($inhibitJob.Id))"
+        }
+        else {
+            Write-Warning "systemd-inhibit not found. SystemAPI method will not be effective. Install systemd."
+        }
+    }
+
+    $script:JigglingJob = Start-Job -ScriptBlock {
+        param($Interval, $Methods, $Duration, $StartTime)
+
+        $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
+
+        while ((Get-Date) -lt $endTime) {
+            # Randomly select a method from the provided methods
+            $method = $Methods | Get-Random
+
+            switch ($method) {
+                'MouseSoftware' {
+                    # Move mouse using xdotool/ydotool
+                    try {
+                        $xOffset = Get-Random -Minimum -10 -Maximum 11
+                        $yOffset = Get-Random -Minimum -10 -Maximum 11
+
+                        if (Get-Command xdotool -ErrorAction SilentlyContinue) {
+                            & xdotool mousemove_relative -- $xOffset $yOffset 2>&1 | Out-Null
+                            Start-Sleep -Milliseconds 100
+                            & xdotool mousemove_relative -- (-$xOffset) (-$yOffset) 2>&1 | Out-Null
+                        }
+                        elseif (Get-Command ydotool -ErrorAction SilentlyContinue) {
+                            & ydotool mousemove -r $xOffset $yOffset 2>&1 | Out-Null
+                            Start-Sleep -Milliseconds 100
+                            & ydotool mousemove -r (-$xOffset) (-$yOffset) 2>&1 | Out-Null
+                        }
+                    }
+                    catch {
+                        Write-Warning "Mouse movement failed: $_"
+                    }
+                }
+                'SystemAPI' {
+                    # systemd-inhibit is running in separate job, just continue
+                    Write-Verbose "SystemAPI active via systemd-inhibit"
+                }
+            }
+
+            # Wait for the specified interval
+            Start-Sleep -Milliseconds $Interval
+        }
+    } -ArgumentList $Interval, $Methods, $Duration, $startTime
+
+    # Store inhibit job reference if created
+    if ($inhibitJob) {
+        $script:JigglingJob | Add-Member -NotePropertyName 'InhibitJob' -NotePropertyValue $inhibitJob -Force
+    }
+
+    if ($Duration -gt 0) {
+        Write-Host "PSMouseJiggler KeepAwake will run for $Duration seconds" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "PSMouseJiggler KeepAwake is running indefinitely. Use Stop-PSMouseJiggler to stop." -ForegroundColor Yellow
+    }
+
+    # Clear console if incognito mode is enabled
+    if ($Incognito) {
+        Clear-Host
+    }
+}
+
+#endregion
+
+#region macOS-Specific Functions
+
+<#
+.SYNOPSIS
+    Helper function to invoke cliclick commands on macOS.
+
+.DESCRIPTION
+    Detects and executes cliclick commands with version checking.
+    Includes version detection and warnings for outdated tools.
+
+.PARAMETER Command
+    The cliclick command to execute.
+
+.EXAMPLE
+    Invoke-CliClick -Command "m:+10,+5"
+#>
+function Invoke-CliClick {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [string]$Command
+    )
+
+    if (Get-Command cliclick -ErrorAction SilentlyContinue) {
+        # Check version and warn if outdated
+        try {
+            $versionOutput = & cliclick -V 2>&1 | Select-Object -First 1
+            if ($versionOutput -match 'cliclick (\d+)\.(\d+)(\.\d+)?') {
+                $major = [int]$matches[1]
+                $minor = [int]$matches[2]
+                $version = "$major.$minor"
+
+                if ($major -lt 5) {
+                    Write-Warning "cliclick version $version detected. Version 5.0 or higher recommended for best compatibility."
+                }
+                Write-Verbose "Using cliclick version $version"
+            }
+        }
+        catch {
+            Write-Verbose "Could not determine cliclick version"
+        }
+
+        $fullCommand = "cliclick $Command"
+        Write-Verbose "Executing: $fullCommand"
+        Invoke-Expression $fullCommand
+    }
+    else {
+        Write-Error "cliclick not found. Please install it via Homebrew: brew install cliclick"
+        throw "Required tool not found"
+    }
+}
+
+<#
+.SYNOPSIS
+    Starts the PSMouseJiggler on macOS using cliclick.
+
+.DESCRIPTION
+    macOS-specific implementation using cliclick for mouse control.
+    Supports all movement patterns and background execution.
+
+.PARAMETER Interval
+    Time in milliseconds between mouse movements.
+
+.PARAMETER MovementPattern
+    The pattern for mouse movement.
+
+.PARAMETER Duration
+    Duration in seconds to run the jiggler.
+
+.PARAMETER Incognito
+    When enabled, clears the console after starting.
+#>
+function Start-PSMouseJiggler-MacOS {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [int]$Interval = 1000,
+
+        [Parameter()]
+        [ValidateSet('Random', 'Horizontal', 'Vertical', 'Circular')]
+        [string]$MovementPattern = 'Random',
+
+        [Parameter()]
+        [int]$Duration = 0,
+
+        [Parameter()]
+        [switch]$Incognito
+    )
+
+    if ($script:JigglingActive) {
+        Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
+        return
+    }
+
+    # Verify cliclick is available
+    if (-not (Test-PlatformCapability -Capability 'CliClick')) {
+        Write-Error "macOS support requires cliclick. Install using Homebrew:"
+        Write-Host "  brew install cliclick" -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "Starting PSMouseJiggler (macOS) with $MovementPattern pattern, interval: $Interval ms" -ForegroundColor Green
+
+    $script:JigglingActive = $true
+    $startTime = Get-Date
+
+    $script:JigglingJob = Start-Job -ScriptBlock {
+        param($Interval, $MovementPattern, $Duration, $StartTime)
+
+        $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
+
+        while ((Get-Date) -lt $endTime) {
+            # Determine movement pattern
+            switch ($MovementPattern) {
+                'Random' {
+                    $xOffset = Get-Random -Minimum -10 -Maximum 11
+                    $yOffset = Get-Random -Minimum -10 -Maximum 11
+                }
+                'Horizontal' {
+                    $xOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
+                    $yOffset = 0
+                }
+                'Vertical' {
+                    $xOffset = 0
+                    $yOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
+                }
+                'Circular' {
+                    $angle = (Get-Date).Millisecond / 1000 * 2 * [Math]::PI
+                    $xOffset = [Math]::Round([Math]::Sin($angle) * 10)
+                    $yOffset = [Math]::Round([Math]::Cos($angle) * 10)
+                }
+                default {
+                    $xOffset = Get-Random -Minimum -5 -Maximum 6
+                    $yOffset = Get-Random -Minimum -5 -Maximum 6
+                }
+            }
+
+            # Move the mouse using cliclick (relative movement)
+            try {
+                if (Get-Command cliclick -ErrorAction SilentlyContinue) {
+                    # cliclick uses m:+X,+Y for relative movement
+                    $moveCmd = "m:+$xOffset,+$yOffset"
+                    & cliclick $moveCmd 2>&1 | Out-Null
+                }
+            }
+            catch {
+                Write-Warning "Failed to move mouse: $_"
+            }
+
+            # Wait for the specified interval
+            Start-Sleep -Milliseconds $Interval
+        }
+    } -ArgumentList $Interval, $MovementPattern, $Duration, $startTime
+
+    if ($Duration -gt 0) {
+        Write-Host "PSMouseJiggler will run for $Duration seconds" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "PSMouseJiggler is running indefinitely. Use Stop-PSMouseJiggler to stop." -ForegroundColor Yellow
+    }
+
+    # Clear console if incognito mode is enabled
+    if ($Incognito) {
+        Clear-Host
+    }
+}
+
+<#
+.SYNOPSIS
+    Stops the PSMouseJiggler on macOS.
+
+.DESCRIPTION
+    macOS-specific implementation for stopping the jiggler.
+    Handles job cleanup and state management.
+#>
+function Stop-PSMouseJiggler-MacOS {
+    [CmdletBinding()]
+    param()
+
+    if (-not $script:JigglingActive) {
+        Write-Warning "PSMouseJiggler is not currently running."
+        return
+    }
+
+    if ($script:JigglingJob) {
+        if ($script:JigglingJob -is [System.Management.Automation.Job]) {
+            Stop-Job -Job $script:JigglingJob -ErrorAction SilentlyContinue
+            Remove-Job -Job $script:JigglingJob -ErrorAction SilentlyContinue
+        }
+        else {
+            Write-Verbose "Stopping non-Job object (likely a test mock)"
+        }
+        $script:JigglingJob = $null
+    }
+
+    $script:JigglingActive = $false
+    Write-Host "PSMouseJiggler stopped." -ForegroundColor Green
+}
+
+<#
+.SYNOPSIS
+    Moves the mouse cursor on macOS.
+
+.DESCRIPTION
+    macOS-specific implementation using cliclick for cursor movement.
+    Uses relative positioning to move the cursor by the specified offsets.
+
+.PARAMETER X
+    Horizontal offset in pixels.
+
+.PARAMETER Y
+    Vertical offset in pixels.
+#>
+function Move-Mouse-MacOS {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [int]$X,
+
+        [Parameter(Mandatory)]
+        [int]$Y
+    )
+
+    try {
+        if (Get-Command cliclick -ErrorAction SilentlyContinue) {
+            # cliclick uses m:+X,+Y for relative movement
+            $moveCmd = "m:+$X,+$Y"
+            & cliclick $moveCmd 2>&1 | Out-Null
+            Write-Verbose "Moved mouse using cliclick: X=$X, Y=$Y"
+        }
+        else {
+            Write-Error "cliclick not found. Please install it via Homebrew: brew install cliclick"
+        }
+    }
+    catch {
+        Write-Error "Failed to move mouse on macOS: $_"
+    }
+}
+
+<#
+.SYNOPSIS
+    Starts keep-awake functionality on macOS.
+
+.DESCRIPTION
+    macOS-specific implementation using cliclick for mouse simulation and caffeinate for idle prevention.
+    Note: MouseHardware and Keyboard methods are mapped to MouseSoftware on macOS.
+
+.PARAMETER Methods
+    Array of methods to use. Supported on macOS: MouseSoftware, SystemAPI.
+
+.PARAMETER Interval
+    Time in milliseconds between keep-awake actions.
+
+.PARAMETER Duration
+    Duration in seconds to run keep-awake.
+
+.PARAMETER Incognito
+    When enabled, clears the console after starting.
+#>
+function Start-KeepAwake-MacOS {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [ValidateSet('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI', 'All')]
+        [string[]]$Methods = @('All'),
+
+        [Parameter()]
+        [int]$Interval = 30000,
+
+        [Parameter()]
+        [int]$Duration = 0,
+
+        [Parameter()]
+        [switch]$Incognito
+    )
+
+    if ($script:JigglingActive) {
+        Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
+        return
+    }
+
+    Write-Host "Starting PSMouseJiggler KeepAwake (macOS) with multiple methods, interval: $Interval ms" -ForegroundColor Green
+
+    # Map unsupported methods to MouseSoftware on macOS
+    if ($Methods -contains 'All') {
+        $Methods = @('MouseSoftware', 'SystemAPI')
+    }
+    else {
+        # Map MouseHardware and Keyboard to MouseSoftware
+        $Methods = $Methods | ForEach-Object {
+            if ($_ -in @('MouseHardware', 'Keyboard')) {
+                Write-Warning "$_ method not directly supported on macOS. Using MouseSoftware instead."
+                'MouseSoftware'
+            }
+            else {
+                $_
+            }
+        } | Select-Object -Unique
+    }
+
+    $script:JigglingActive = $true
+    $startTime = Get-Date
+
+    # If using SystemAPI, start caffeinate wrapper
+    $caffeinateJob = $null
+    if ($Methods -contains 'SystemAPI') {
+        if (Get-Command caffeinate -ErrorAction SilentlyContinue) {
+            Write-Verbose "Starting caffeinate to prevent idle"
+
+            # Start caffeinate in background
+            # -d prevents display sleep, -i prevents idle sleep
+            $caffeinateDuration = if ($Duration -gt 0) { $Duration } else { 86400 } # Default to 24 hours if indefinite
+            $caffeinateJob = Start-Job -ScriptBlock {
+                param($Duration)
+                # caffeinate blocks system idle and display sleep
+                & caffeinate -d -i -t $Duration 2>&1
+            } -ArgumentList $caffeinateDuration
+
+            Write-Verbose "caffeinate started (Job ID: $($caffeinateJob.Id))"
+        }
+        else {
+            Write-Warning "caffeinate not found (should be built-in to macOS). SystemAPI method may not work."
+        }
+    }
+
+    $script:JigglingJob = Start-Job -ScriptBlock {
+        param($Interval, $Methods, $Duration, $StartTime)
+
+        $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
+
+        while ((Get-Date) -lt $endTime) {
+            # Randomly select a method from the provided methods
+            $method = $Methods | Get-Random
+
+            switch ($method) {
+                'MouseSoftware' {
+                    # Move mouse using cliclick
+                    try {
+                        $xOffset = Get-Random -Minimum -10 -Maximum 11
+                        $yOffset = Get-Random -Minimum -10 -Maximum 11
+
+                        if (Get-Command cliclick -ErrorAction SilentlyContinue) {
+                            $moveCmd = "m:+$xOffset,+$yOffset"
+                            & cliclick $moveCmd 2>&1 | Out-Null
+                            Start-Sleep -Milliseconds 100
+                            $moveBackCmd = "m:+$(-$xOffset),+$(-$yOffset)"
+                            & cliclick $moveBackCmd 2>&1 | Out-Null
+                        }
+                    }
+                    catch {
+                        Write-Warning "Mouse movement failed: $_"
+                    }
+                }
+                'SystemAPI' {
+                    # caffeinate is running in separate job, just continue
+                    Write-Verbose "SystemAPI active via caffeinate"
+                }
+            }
+
+            # Wait for the specified interval
+            Start-Sleep -Milliseconds $Interval
+        }
+    } -ArgumentList $Interval, $Methods, $Duration, $startTime
+
+    # Store caffeinate job reference if created
+    if ($caffeinateJob) {
+        $script:JigglingJob | Add-Member -NotePropertyName 'CaffeinateJob' -NotePropertyValue $caffeinateJob -Force
+    }
+
+    if ($Duration -gt 0) {
+        Write-Host "PSMouseJiggler KeepAwake will run for $Duration seconds" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "PSMouseJiggler KeepAwake is running indefinitely. Use Stop-PSMouseJiggler to stop." -ForegroundColor Yellow
+    }
+
+    # Clear console if incognito mode is enabled
+    if ($Incognito) {
+        Clear-Host
+    }
+}
+
+#endregion
+
+#endregion
+
+#region Cross-Platform Wrapper Functions
+
+<#
+.SYNOPSIS
+    Starts the PSMouseJiggler to simulate mouse movements.
+
+.DESCRIPTION
+    Cross-platform wrapper that starts mouse jiggling with specified interval and movement pattern to prevent the system from going idle.
+    Automatically detects the operating system and dispatches to the appropriate platform-specific implementation.
+
+    - Windows: Uses System.Windows.Forms API (Windows PowerShell 5.1 or PowerShell 7+)
+    - Linux: Uses xdotool/ydotool (Requires PowerShell 7+)
+    - macOS: Uses cliclick (Requires PowerShell 7+)
+
+.PARAMETER Interval
+    Time in milliseconds between mouse movements. Default is 1000ms.
+
+.PARAMETER MovementPattern
+    The pattern for mouse movement. Valid values: 'Random', 'Horizontal', 'Vertical', 'Circular'. Default is 'Random'.
+
+.PARAMETER Duration
+    Duration in seconds to run the jiggler. If not specified, runs indefinitely until stopped.
+
+.PARAMETER Incognito
+    When enabled, clears the console after starting to maintain privacy/discretion.
+
+.EXAMPLE
+    Start-PSMouseJiggler
+    Starts mouse jiggling with default settings on the detected platform.
+
+.EXAMPLE
+    Start-PSMouseJiggler -Interval 2000 -MovementPattern 'Circular' -Duration 300
+    Starts mouse jiggling every 2 seconds using circular pattern for 5 minutes.
+
+.NOTES
+    Requires PowerShell 7+ for Linux and macOS support.
+    Windows PowerShell 5.1 is supported on Windows only.
+#>
+function Start-PSMouseJiggler {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [int]$Interval = 1000,
+
+        [Parameter()]
+        [ValidateSet('Random', 'Horizontal', 'Vertical', 'Circular')]
+        [string]$MovementPattern = 'Random',
+
+        [Parameter()]
+        [int]$Duration = 0,
+
+        [Parameter()]
+        [switch]$Incognito
+    )
+
+    $platform = Get-OperatingSystemPlatform
+
+    Write-Verbose "Detected platform: $platform"
+
+    switch ($platform) {
+        'Windows' {
+            Start-PSMouseJiggler-Windows @PSBoundParameters
+        }
+        'Linux' {
+            # Check for required tools
+            if (-not (Test-PlatformCapability -Capability 'XDoTool')) {
+                Write-Error "Linux support requires xdotool or ydotool. Please install using your package manager."
+                Show-DependencyInstallInstructions -Platform 'Linux'
+                return
+            }
+            Start-PSMouseJiggler-Linux @PSBoundParameters
+        }
+        'macOS' {
+            # Check for required tools
+            if (-not (Test-PlatformCapability -Capability 'CliClick')) {
+                Write-Error "macOS support requires cliclick. Install via: brew install cliclick"
+                Show-DependencyInstallInstructions -Platform 'macOS'
+                return
+            }
+            Start-PSMouseJiggler-MacOS @PSBoundParameters
+        }
+        default {
+            Write-Error "Unsupported platform: $platform"
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+    Stops the PSMouseJiggler.
+
+.DESCRIPTION
+    Cross-platform wrapper that stops any running mouse jiggling job.
+    Automatically detects the operating system and dispatches to the appropriate platform-specific implementation.
+
+.EXAMPLE
+    Stop-PSMouseJiggler
+    Stops the currently running mouse jiggler on the detected platform.
+
+.NOTES
+    Works on Windows, Linux, and macOS.
+#>
+function Stop-PSMouseJiggler {
+    [CmdletBinding()]
+    param()
+
+    $platform = Get-OperatingSystemPlatform
+
+    Write-Verbose "Stopping jiggler on platform: $platform"
+
+    switch ($platform) {
+        'Windows' {
+            Stop-PSMouseJiggler-Windows
+        }
+        'Linux' {
+            Stop-PSMouseJiggler-Linux
+        }
+        'macOS' {
+            Stop-PSMouseJiggler-MacOS
+        }
+        default {
+            Write-Error "Unsupported platform: $platform"
+        }
+    }
 }
 
 <#
@@ -915,6 +2245,488 @@ INCOGNITO MODE:
     [void]$form.ShowDialog()
 }
 
+<#
+.SYNOPSIS
+    Displays a cross-platform Terminal User Interface (TUI) for PSMouseJiggler.
+
+.DESCRIPTION
+    Shows a text-based interactive interface using Terminal.Gui that works on all platforms.
+    Provides controls for:
+    - Starting/stopping mouse jiggling with different patterns (Random, Horizontal, Vertical, Circular)
+    - Configuring interval and duration
+    - Incognito mode checkbox (minimizes window and clears console output for discrete operation)
+    - Selecting individual keep-awake methods (Software Mouse, Hardware Mouse, Keyboard, System API)
+    - Platform-specific method availability based on OS capabilities
+
+    Requires the Terminal.Gui PowerShell module (provided by Microsoft.PowerShell.ConsoleGuiTools):
+    Install-Module -Name Microsoft.PowerShell.ConsoleGuiTools -Scope CurrentUser
+
+.EXAMPLE
+    Show-PSMouseJigglerTUI
+    Displays the interactive TUI interface with all available controls.
+
+.NOTES
+    - Works on Windows, Linux, and macOS with PowerShell 7+
+    - Available keep-awake methods vary by platform:
+      * Windows: Software Mouse, Hardware Mouse, Keyboard, System API
+      * Linux: Software Mouse, System API (systemd-inhibit)
+      * macOS: Software Mouse, System API (caffeinate)
+    - Press ESC to quit, TAB to navigate, SPACE to toggle checkboxes, ENTER to activate buttons
+    - Falls back to command-line instructions if Terminal.Gui is not available
+    - Requires Microsoft.PowerShell.ConsoleGuiTools module (includes Terminal.Gui)
+#>
+function Show-PSMouseJigglerTUI {
+    [CmdletBinding()]
+    param()
+
+    # Check if Terminal.Gui is available (via ConsoleGuiTools or standalone)
+    $hasConsoleGuiTools = Get-Module -ListAvailable -Name Microsoft.PowerShell.ConsoleGuiTools
+    $hasTerminalGui = Get-Module -ListAvailable -Name Terminal.Gui
+
+    if (-not $hasConsoleGuiTools -and -not $hasTerminalGui) {
+        Write-Host @"
+
+╔═══════════════════════════════════════════════════════════════╗
+║                                                               ║
+║   Terminal.Gui Module Not Found                              ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+
+The Terminal.Gui module is required for the TUI interface.
+
+RECOMMENDED: Install Microsoft.PowerShell.ConsoleGuiTools (includes Terminal.Gui):
+  Install-Module -Name Microsoft.PowerShell.ConsoleGuiTools -Scope CurrentUser
+
+Alternative: Install Terminal.Gui directly:
+  Install-Module -Name Terminal.Gui -Scope CurrentUser
+
+After installation, restart your PowerShell session and try again.
+
+In the meantime, you can use PSMouseJiggler from the command line:
+  Start-PSMouseJiggler -Interval 1000 -MovementPattern Random
+  Stop-PSMouseJiggler
+
+For platform-specific information:
+  Get-OperatingSystemPlatform
+  Test-PlatformCapability -Capability GUI
+  Show-DependencyInstallInstructions
+
+"@ -ForegroundColor Yellow
+        return
+    }
+
+    # Load Terminal.Gui assembly
+    try {
+        # Try to load from ConsoleGuiTools first (recommended)
+        if ($hasConsoleGuiTools) {
+            $consoleGuiToolsPath = (Get-Module -ListAvailable Microsoft.PowerShell.ConsoleGuiTools | Select-Object -First 1).ModuleBase
+            $terminalGuiDll = Join-Path $consoleGuiToolsPath "Terminal.Gui.dll"
+            if (Test-Path $terminalGuiDll) {
+                Add-Type -Path $terminalGuiDll -ErrorAction Stop
+            }
+            else {
+                throw "Terminal.Gui.dll not found in ConsoleGuiTools module"
+            }
+        }
+        # Fall back to standalone Terminal.Gui module
+        elseif ($hasTerminalGui) {
+            Import-Module Terminal.Gui -ErrorAction Stop
+        }
+    }
+    catch {
+        Write-Error "Failed to load Terminal.Gui: $_"
+        Write-Host "Try reinstalling: Install-Module -Name Microsoft.PowerShell.ConsoleGuiTools -Force" -ForegroundColor Yellow
+        return
+    }
+
+    # Initialize Terminal.Gui
+    [Terminal.Gui.Application]::Init()
+
+    try {
+        # Create main window
+        $top = [Terminal.Gui.Application]::Top
+
+        # Create window
+        $win = [Terminal.Gui.Window]@{
+            X      = 0
+            Y      = 1
+            Width  = [Terminal.Gui.Dim]::Fill()
+            Height = [Terminal.Gui.Dim]::Fill()
+            Title  = "PSMouseJiggler v2.0.0 - Cross-Platform Mouse Jiggler"
+        }
+
+        # Status frame
+        $statusFrame = [Terminal.Gui.FrameView]@{
+            X      = 1
+            Y      = 1
+            Width  = [Terminal.Gui.Dim]::Fill() - 2
+            Height = 3
+            Title  = "Status"
+        }
+
+        $statusLabel = [Terminal.Gui.Label]@{
+            X    = 1
+            Y    = 0
+            Text = "Stopped"
+        }
+        $statusFrame.Add($statusLabel)
+        $win.Add($statusFrame)
+
+        # Platform info frame
+        $platformFrame = [Terminal.Gui.FrameView]@{
+            X      = 1
+            Y      = 4
+            Width  = [Terminal.Gui.Dim]::Fill() - 2
+            Height = 3
+            Title  = "Platform"
+        }
+
+        $platform = Get-OperatingSystemPlatform
+        $platformLabel = [Terminal.Gui.Label]@{
+            X    = 1
+            Y    = 0
+            Text = "OS: $platform | PowerShell: $($PSVersionTable.PSVersion)"
+        }
+        $platformFrame.Add($platformLabel)
+        $win.Add($platformFrame)
+
+        # Configuration frame
+        $configFrame = [Terminal.Gui.FrameView]@{
+            X      = 1
+            Y      = 7
+            Width  = [Terminal.Gui.Dim]::Fill() - 2
+            Height = 10
+            Title  = "Mouse Jiggler Configuration"
+        }
+
+        # Interval
+        $intervalLabel = [Terminal.Gui.Label]@{
+            X    = 1
+            Y    = 0
+            Text = "Interval (ms):"
+        }
+        $configFrame.Add($intervalLabel)
+
+        $intervalField = [Terminal.Gui.TextField]@{
+            X     = 20
+            Y     = 0
+            Width = 10
+            Text  = "1000"
+        }
+        $configFrame.Add($intervalField)
+
+        # Pattern
+        $patternLabel = [Terminal.Gui.Label]@{
+            X    = 1
+            Y    = 2
+            Text = "Movement Pattern:"
+        }
+        $configFrame.Add($patternLabel)
+
+        $patternRadio = [Terminal.Gui.RadioGroup]@{
+            X            = 20
+            Y            = 2
+            Width        = 20
+            Height       = 4
+            RadioLabels  = @('Random', 'Horizontal', 'Vertical', 'Circular')
+            SelectedItem = 0
+        }
+        $configFrame.Add($patternRadio)
+
+        # Duration
+        $durationLabel = [Terminal.Gui.Label]@{
+            X    = 1
+            Y    = 7
+            Text = "Duration (sec, 0=indefinite):"
+        }
+        $configFrame.Add($durationLabel)
+
+        $durationField = [Terminal.Gui.TextField]@{
+            X     = 32
+            Y     = 7
+            Width = 10
+            Text  = "0"
+        }
+        $configFrame.Add($durationField)
+
+        # Incognito mode checkbox
+        $incognitoCheckbox = [Terminal.Gui.CheckBox]@{
+            X       = 45
+            Y       = 7
+            Text    = "Incognito Mode"
+            Checked = $false
+        }
+        $configFrame.Add($incognitoCheckbox)
+
+        $win.Add($configFrame)
+
+        # Keep-Awake Methods frame
+        $methodsFrame = [Terminal.Gui.FrameView]@{
+            X      = 1
+            Y      = 17
+            Width  = [Terminal.Gui.Dim]::Fill() - 2
+            Height = 7
+            Title  = "Keep-Awake Methods (for Keep Awake button)"
+        }
+
+        $methodsLabel = [Terminal.Gui.Label]@{
+            X    = 1
+            Y    = 0
+            Text = "Select methods to use:"
+        }
+        $methodsFrame.Add($methodsLabel)
+
+        # Detect available methods based on platform
+        $availableMethods = @()
+
+        # Mouse movements available on all platforms with appropriate tools
+        if ((Test-PlatformCapability -Capability XDoTool) -or
+            (Test-PlatformCapability -Capability YDoTool) -or
+            (Test-PlatformCapability -Capability CliClick) -or
+            (Test-PlatformCapability -Capability WindowsAPI)) {
+            $availableMethods += 'MouseSoftware'
+        }
+
+        # Windows-specific methods
+        if (Test-PlatformCapability -Capability WindowsAPI) {
+            $availableMethods += 'MouseHardware'
+            $availableMethods += 'Keyboard'
+            $availableMethods += 'SystemAPI'
+        }
+
+        # Linux system API (systemd-inhibit)
+        if (Test-PlatformCapability -Capability SystemdInhibit) {
+            if (-not ($availableMethods -contains 'SystemAPI')) {
+                $availableMethods += 'SystemAPI'
+            }
+        }
+
+        # macOS system API (caffeinate)
+        if (Test-PlatformCapability -Capability Caffeinate) {
+            if (-not ($availableMethods -contains 'SystemAPI')) {
+                $availableMethods += 'SystemAPI'
+            }
+        }
+
+        # Create checkboxes for available methods
+        $methodCheckboxes = @{}
+        $yPos = 1
+
+        if ($availableMethods -contains 'MouseSoftware') {
+            $chk = [Terminal.Gui.CheckBox]@{
+                X       = 2
+                Y       = $yPos
+                Text    = "Software Mouse Movements"
+                Checked = $true
+            }
+            $methodsFrame.Add($chk)
+            $methodCheckboxes['MouseSoftware'] = $chk
+            $yPos++
+        }
+
+        if ($availableMethods -contains 'MouseHardware') {
+            $chk = [Terminal.Gui.CheckBox]@{
+                X       = 2
+                Y       = $yPos
+                Text    = "Hardware Mouse Input"
+                Checked = $false
+            }
+            $methodsFrame.Add($chk)
+            $methodCheckboxes['MouseHardware'] = $chk
+            $yPos++
+        }
+
+        if ($availableMethods -contains 'Keyboard') {
+            $chk = [Terminal.Gui.CheckBox]@{
+                X       = 2
+                Y       = $yPos
+                Text    = "Keyboard Input (F15)"
+                Checked = $false
+            }
+            $methodsFrame.Add($chk)
+            $methodCheckboxes['Keyboard'] = $chk
+            $yPos++
+        }
+
+        if ($availableMethods -contains 'SystemAPI') {
+            $methodLabel = "System API"
+            if ($platform -eq 'Windows') {
+                $methodLabel = "System API (SetThreadExecutionState)"
+            }
+            elseif ($platform -eq 'Linux') {
+                $methodLabel = "System API (systemd-inhibit)"
+            }
+            elseif ($platform -eq 'macOS') {
+                $methodLabel = "System API (caffeinate)"
+            }
+
+            $chk = [Terminal.Gui.CheckBox]@{
+                X       = 2
+                Y       = $yPos
+                Text    = $methodLabel
+                Checked = $true
+            }
+            $methodsFrame.Add($chk)
+            $methodCheckboxes['SystemAPI'] = $chk
+        }
+
+        $win.Add($methodsFrame)
+
+        # Buttons frame
+        $buttonFrame = [Terminal.Gui.FrameView]@{
+            X      = 1
+            Y      = 24
+            Width  = [Terminal.Gui.Dim]::Fill() - 2
+            Height = 5
+            Title  = "Controls"
+        }
+
+        # Start button
+        $startButton = [Terminal.Gui.Button]@{
+            X    = 2
+            Y    = 1
+            Text = "Start"
+        }
+
+        $startButton.add_Clicked({
+                try {
+                    $interval = [int]$intervalField.Text.ToString()
+                    $pattern = @('Random', 'Horizontal', 'Vertical', 'Circular')[$patternRadio.SelectedItem]
+                    $duration = [int]$durationField.Text.ToString()
+                    $incognito = $incognitoCheckbox.Checked
+
+                    if ($incognito) {
+                        Start-PSMouseJiggler -Interval $interval -MovementPattern $pattern -Duration $duration -Incognito
+                    }
+                    else {
+                        Start-PSMouseJiggler -Interval $interval -MovementPattern $pattern -Duration $duration
+                    }
+
+                    $modeText = if ($incognito) { " (Incognito)" } else { "" }
+                    $statusLabel.Text = "Running - Pattern: $pattern, Interval: ${interval}ms$modeText"
+                    $startButton.Enabled = $false
+                    $stopButton.Enabled = $true
+                }
+                catch {
+                    $statusLabel.Text = "Error: $($_.Exception.Message)"
+                }
+            })
+        $buttonFrame.Add($startButton)
+
+        # Stop button
+        $stopButton = [Terminal.Gui.Button]@{
+            X       = 12
+            Y       = 1
+            Text    = "Stop"
+            Enabled = $false
+        }
+
+        $stopButton.add_Clicked({
+                try {
+                    Stop-PSMouseJiggler
+                    $statusLabel.Text = "Stopped"
+                    $startButton.Enabled = $true
+                    $stopButton.Enabled = $false
+                }
+                catch {
+                    $statusLabel.Text = "Error: $($_.Exception.Message)"
+                }
+            })
+        $buttonFrame.Add($stopButton)
+
+        # Keep Awake button
+        $keepAwakeButton = [Terminal.Gui.Button]@{
+            X    = 22
+            Y    = 1
+            Text = "Keep Awake"
+        }
+
+        $keepAwakeButton.add_Clicked({
+                try {
+                    $interval = [int]$intervalField.Text.ToString()
+                    $duration = [int]$durationField.Text.ToString()
+                    $incognito = $incognitoCheckbox.Checked
+
+                    # Collect selected methods from checkboxes
+                    $selectedMethods = @()
+                    foreach ($methodName in $methodCheckboxes.Keys) {
+                        if ($methodCheckboxes[$methodName].Checked) {
+                            $selectedMethods += $methodName
+                        }
+                    }
+
+                    if ($selectedMethods.Count -eq 0) {
+                        $statusLabel.Text = "Error: Please select at least one keep-awake method"
+                        return
+                    }
+
+                    if ($incognito) {
+                        Start-KeepAwake -Methods $selectedMethods -Interval $interval -Duration $duration -Incognito
+                    }
+                    else {
+                        Start-KeepAwake -Methods $selectedMethods -Interval $interval -Duration $duration
+                    }
+
+                    $methodsList = $selectedMethods -join ', '
+                    $modeText = if ($incognito) { " (Incognito)" } else { "" }
+                    $statusLabel.Text = "Keep Awake Running - Methods: $methodsList$modeText"
+                    $startButton.Enabled = $false
+                    $stopButton.Enabled = $true
+                }
+                catch {
+                    $statusLabel.Text = "Error: $($_.Exception.Message)"
+                }
+            })
+        $buttonFrame.Add($keepAwakeButton)
+
+        # Quit button
+        $quitButton = [Terminal.Gui.Button]@{
+            X    = 38
+            Y    = 1
+            Text = "Quit"
+        }
+
+        $quitButton.add_Clicked({
+                if ($script:JigglingActive) {
+                    Stop-PSMouseJiggler
+                }
+                [Terminal.Gui.Application]::RequestStop()
+            })
+        $buttonFrame.Add($quitButton)
+
+        $win.Add($buttonFrame)
+
+        # Help text
+        $helpLabel = [Terminal.Gui.Label]@{
+            X    = 1
+            Y    = 29
+            Text = "Press ESC to quit | TAB to navigate | SPACE to toggle checkbox | ENTER to activate button"
+        }
+        $win.Add($helpLabel)
+
+        # Add window to top
+        $top.Add($win)
+
+        # Handle ESC key to quit
+        $top.add_KeyPress({
+                param($e)
+                if ($e.KeyEvent.Key -eq [Terminal.Gui.Key]::Esc) {
+                    if ($script:JigglingActive) {
+                        Stop-PSMouseJiggler
+                    }
+                    [Terminal.Gui.Application]::RequestStop()
+                }
+            })
+
+        # Run the application
+        [Terminal.Gui.Application]::Run()
+    }
+    finally {
+        # Cleanup
+        [Terminal.Gui.Application]::Shutdown()
+    }
+}
+
 #endregion
 
 #region Configuration Functions
@@ -1150,6 +2962,29 @@ function Get-RandomMovementPattern {
     Move-Mouse -X 10 -Y -5
     Moves the mouse 10 pixels right and 5 pixels up.
 #>
+<#
+.SYNOPSIS
+    Moves the mouse cursor by a relative offset.
+
+.DESCRIPTION
+    Cross-platform wrapper that moves the mouse cursor by the specified X and Y offsets.
+    Automatically detects the operating system and dispatches to the appropriate platform-specific implementation.
+
+.PARAMETER X
+    Horizontal offset in pixels (positive = right, negative = left).
+
+.PARAMETER Y
+    Vertical offset in pixels (positive = down, negative = up).
+
+.EXAMPLE
+    Move-Mouse -X 10 -Y 5
+    Moves the mouse cursor 10 pixels right and 5 pixels down.
+
+.NOTES
+    - Windows: Uses System.Windows.Forms.Cursor
+    - Linux: Uses xdotool or ydotool
+    - macOS: Uses cliclick
+#>
 function Move-Mouse {
     [CmdletBinding()]
     param (
@@ -1160,9 +2995,32 @@ function Move-Mouse {
         [int]$Y
     )
 
-    $currentPos = [System.Windows.Forms.Cursor]::Position
-    $newPos = [System.Drawing.Point]::new($currentPos.X + $X, $currentPos.Y + $Y)
-    [System.Windows.Forms.Cursor]::Position = $newPos
+    $platform = Get-OperatingSystemPlatform
+
+    Write-Verbose "Moving mouse on platform: $platform (X: $X, Y: $Y)"
+
+    switch ($platform) {
+        'Windows' {
+            Move-Mouse-Windows -X $X -Y $Y
+        }
+        'Linux' {
+            if (-not (Test-PlatformCapability -Capability 'XDoTool')) {
+                Write-Error "Linux support requires xdotool or ydotool."
+                return
+            }
+            Move-Mouse-Linux -X $X -Y $Y
+        }
+        'macOS' {
+            if (-not (Test-PlatformCapability -Capability 'CliClick')) {
+                Write-Error "macOS support requires cliclick."
+                return
+            }
+            Move-Mouse-MacOS -X $X -Y $Y
+        }
+        default {
+            Write-Error "Unsupported platform: $platform"
+        }
+    }
 }
 
 <#
@@ -1583,6 +3441,45 @@ When enabled, clears the console after starting to maintain privacy/discretion.
     Start-KeepAwake -Interval 60000 -Duration 3600
     Keeps the system awake for 1 hour, performing actions every 60 seconds.
 #>
+<#
+.SYNOPSIS
+    Starts keep-awake functionality with multiple methods.
+
+.DESCRIPTION
+    Cross-platform wrapper that starts keep-awake functionality using various methods to prevent system idle.
+    Automatically detects the operating system and dispatches to the appropriate platform-specific implementation.
+
+    - Windows: Supports MouseSoftware, MouseHardware, Keyboard, SystemAPI methods
+    - Linux: Supports MouseSoftware (via xdotool), SystemAPI (via systemd-inhibit)
+    - macOS: Supports MouseSoftware (via cliclick), SystemAPI (via caffeinate)
+
+.PARAMETER Methods
+    Array of methods to use for keeping system awake.
+    Valid values: 'MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI', 'All'
+    Note: Not all methods are available on all platforms.
+
+.PARAMETER Interval
+    Time in milliseconds between keep-awake actions. Default is 30000ms (30 seconds).
+
+.PARAMETER Duration
+    Duration in seconds to run keep-awake. If not specified, runs indefinitely until stopped.
+
+.PARAMETER Incognito
+    When enabled, clears the console after starting to maintain privacy/discretion.
+
+.EXAMPLE
+    Start-KeepAwake -Methods 'All'
+    Starts keep-awake with all available methods on the detected platform.
+
+.EXAMPLE
+    Start-KeepAwake -Methods 'SystemAPI' -Duration 3600
+    Uses system API to prevent sleep for 1 hour.
+
+.NOTES
+    Requires PowerShell 7+ for Linux and macOS support.
+    Windows PowerShell 5.1 is supported on Windows only.
+    Available methods vary by platform.
+#>
 function Start-KeepAwake {
     [CmdletBinding()]
     param (
@@ -1600,137 +3497,37 @@ function Start-KeepAwake {
         [switch]$Incognito
     )
 
-    if ($script:JigglingActive) {
-        Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
-        return
-    }
+    $platform = Get-OperatingSystemPlatform
 
-    Write-Host "Starting PSMouseJiggler KeepAwake with multiple methods, interval: $Interval ms" -ForegroundColor Green
+    Write-Verbose "Starting keep-awake on platform: $platform with methods: $($Methods -join ', ')"
 
-    $script:JigglingActive = $true
-    $startTime = Get-Date
-
-    # If 'All' is specified, use all methods
-    if ($Methods -contains 'All') {
-        $Methods = @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI')
-    }
-
-    # Start the prevention immediately using the API
-    if ($Methods -contains 'SystemAPI') {
-        Prevent-SystemIdle
-    }
-
-    $script:JigglingJob = Start-Job -ScriptBlock {
-        param($Interval, $Methods, $Duration, $StartTime)
-
-        # Import required assemblies
-        Add-Type -AssemblyName System.Windows.Forms
-        Add-Type -AssemblyName System.Drawing
-
-        # Define required P/Invoke structures and methods
-        Add-Type -TypeDefinition @"
-        using System;
-        using System.Runtime.InteropServices;
-
-        public static class DisplayState {
-            [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-            public static extern uint SetThreadExecutionState(uint esFlags);
-
-            public const uint ES_CONTINUOUS = 0x80000000;
-            public const uint ES_SYSTEM_REQUIRED = 0x00000001;
-            public const uint ES_DISPLAY_REQUIRED = 0x00000002;
+    switch ($platform) {
+        'Windows' {
+            Start-KeepAwake-Windows @PSBoundParameters
         }
-
-        public static class MouseSimulator {
-            [StructLayout(LayoutKind.Sequential)]
-            public struct MOUSEINPUT {
-                public int dx;
-                public int dy;
-                public uint mouseData;
-                public uint dwFlags;
-                public uint time;
-                public IntPtr dwExtraInfo;
+        'Linux' {
+            # Check for required tools
+            if (-not (Test-PlatformCapability -Capability 'XDoTool') -and $Methods -contains 'MouseSoftware') {
+                Write-Warning "Mouse methods require xdotool or ydotool on Linux."
             }
-
-            [StructLayout(LayoutKind.Sequential)]
-            public struct INPUT {
-                public uint type;
-                public MOUSEINPUT mi;
+            if (-not (Test-PlatformCapability -Capability 'SystemdInhibit') -and $Methods -contains 'SystemAPI') {
+                Write-Warning "SystemAPI method requires systemd-inhibit on Linux."
             }
-
-            [DllImport("user32.dll", SetLastError = true)]
-            public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-
-            public const int INPUT_MOUSE = 0;
-            public const int MOUSEEVENTF_MOVE = 0x0001;
+            Start-KeepAwake-Linux @PSBoundParameters
         }
-"@
-
-        $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
-
-        while ((Get-Date) -lt $endTime) {
-            # Randomly select a method from the provided methods
-            $method = $Methods | Get-Random
-
-            switch ($method) {
-                'MouseSoftware' {
-                    # Move mouse using software method
-                    $currentPos = [System.Windows.Forms.Cursor]::Position
-                    $xOffset = Get-Random -Minimum -10 -Maximum 11
-                    $yOffset = Get-Random -Minimum -10 -Maximum 11
-                    $newPos = [System.Drawing.Point]::new($currentPos.X + $xOffset, $currentPos.Y + $yOffset)
-                    [System.Windows.Forms.Cursor]::Position = $newPos
-
-                    # Move back to original position after a short delay to minimize disruption
-                    Start-Sleep -Milliseconds 100
-                    [System.Windows.Forms.Cursor]::Position = $currentPos
-                }
-                'MouseHardware' {
-                    # Use hardware-level mouse movement
-                    $mouseInputStructure = New-Object MouseSimulator+INPUT
-                    $mouseInputStructure.type = [MouseSimulator]::INPUT_MOUSE
-                    $mouseInputStructure.mi.dx = Get-Random -Minimum -5 -Maximum 6
-                    $mouseInputStructure.mi.dy = Get-Random -Minimum -5 -Maximum 6
-                    $mouseInputStructure.mi.dwFlags = [MouseSimulator]::MOUSEEVENTF_MOVE
-                    $mouseInputStructure.mi.time = 0
-                    $mouseInputStructure.mi.dwExtraInfo = [IntPtr]::Zero
-
-                    $inputArray = @($mouseInputStructure)
-                    [MouseSimulator]::SendInput(1, $inputArray, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT])) | Out-Null
-                }
-                'Keyboard' {
-                    # Press a non-disruptive key (F15 is rarely used)
-                    [System.Windows.Forms.SendKeys]::SendWait("{F15}")
-                }
-                'SystemAPI' {
-                    # Directly tell Windows to stay awake
-                    [DisplayState]::SetThreadExecutionState(
-                        [DisplayState]::ES_CONTINUOUS -bor
-                        [DisplayState]::ES_SYSTEM_REQUIRED -bor
-                        [DisplayState]::ES_DISPLAY_REQUIRED)
-                }
+        'macOS' {
+            # Check for required tools
+            if (-not (Test-PlatformCapability -Capability 'CliClick') -and $Methods -contains 'MouseSoftware') {
+                Write-Warning "Mouse methods require cliclick on macOS."
             }
-
-            # Wait for the specified interval
-            Start-Sleep -Milliseconds $Interval
+            if (-not (Test-PlatformCapability -Capability 'Caffeinate')) {
+                Write-Warning "SystemAPI method uses caffeinate (should be built-in on macOS)."
+            }
+            Start-KeepAwake-MacOS @PSBoundParameters
         }
-
-        # Reset execution state if we used the API
-        if ($Methods -contains 'SystemAPI') {
-            [DisplayState]::SetThreadExecutionState([DisplayState]::ES_CONTINUOUS)
+        default {
+            Write-Error "Unsupported platform: $platform"
         }
-    } -ArgumentList $Interval, $Methods, $Duration, $startTime
-
-    if ($Duration -gt 0) {
-        Write-Host "PSMouseJiggler KeepAwake will run for $Duration seconds" -ForegroundColor Yellow
-    }
-    else {
-        Write-Host "PSMouseJiggler KeepAwake is running indefinitely. Use Stop-PSMouseJiggler to stop." -ForegroundColor Yellow
-    }
-
-    # Clear console if incognito mode is enabled
-    if ($Incognito) {
-        Clear-Host
     }
 }
 
@@ -1756,26 +3553,40 @@ $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
 
 # Export module members (this is also defined in the manifest for best practice)
 Export-ModuleMember -Function @(
+    # Core Functions
     'Start-PSMouseJiggler',
     'Stop-PSMouseJiggler',
     'Get-NewMousePosition',
+    'Move-Mouse',
+    'Start-MovementPattern',
+    'Stop-MovementPattern',
+    'Start-KeepAwake',
+
+    # GUI/TUI Functions
     'Show-PSMouseJigglerGUI',
+    'Show-PSMouseJigglerTUI',
+
+    # Configuration Functions
     'Get-Configuration',
     'Save-Configuration',
     'Update-Configuration',
     'Reset-Configuration',
     'Get-RandomMovementPattern',
-    'Move-Mouse',
-    'Start-MovementPattern',
-    'Stop-MovementPattern',
-    'Get-PSMJScheduledTasks',        # Updated name
-    'New-PSMJScheduledTask',         # Updated name
-    'Remove-PSMJScheduledTask',      # Updated name
-    'Start-PSMJScheduledTask',       # Updated name
-    'Stop-PSMJScheduledTask',        # Updated name
-    # New functions
+
+    # Scheduled Task Functions
+    'Get-PSMJScheduledTasks',
+    'New-PSMJScheduledTask',
+    'Remove-PSMJScheduledTask',
+    'Start-PSMJScheduledTask',
+    'Stop-PSMJScheduledTask',
+
+    # Keep-Awake Methods (Windows-specific)
     'Prevent-SystemIdle',
     'Send-KeyboardInput',
     'Send-MouseInput',
-    'Start-KeepAwake'
+
+    # Platform Detection Helpers (v2.0.0)
+    'Get-OperatingSystemPlatform',
+    'Test-PlatformCapability',
+    'Show-DependencyInstallInstructions'
 )

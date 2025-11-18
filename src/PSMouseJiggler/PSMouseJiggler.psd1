@@ -4,31 +4,31 @@
     # Generated on: $(Get-Date)
 
     # Script module or binary module file associated with this manifest.
-    RootModule             = 'PSMouseJiggler.psm1'
+    RootModule           = 'PSMouseJiggler.psm1'
 
     # Version number of this module.
-    ModuleVersion          = '1.1.0'
+    ModuleVersion        = '2.0.0'
 
     # Supported PSEditions
-    CompatiblePSEditions   = @('Desktop', 'Core')
+    CompatiblePSEditions = @('Desktop', 'Core')
 
     # ID used to uniquely identify this module
-    GUID                   = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+    GUID                 = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
 
     # Author of this module
-    Author                 = 'Steven Wight (PowerShell Young Team)'
+    Author               = 'Steven Wight (PowerShell Young Team)'
 
     # Company or vendor of this module
-    CompanyName            = 'Unknown'
+    CompanyName          = 'Unknown'
 
     # Copyright statement for this module
-    Copyright              = '(c) Steven Wight (PowerShell Young Team). All rights reserved.'
+    Copyright            = '(c) Steven Wight (PowerShell Young Team). All rights reserved.'
 
     # Description of the functionality provided by this module
-    Description            = 'A PowerShell module to simulate mouse movements and prevent system idle. Includes GUI interface, configurable movement patterns, and scheduled task support.'
+    Description          = 'A cross-platform PowerShell module to simulate mouse movements and prevent system idle on Windows, Linux, and macOS. Includes GUI (Windows) and TUI (all platforms) interfaces, configurable movement patterns, and scheduled task support.'
 
     # Minimum version of the PowerShell engine required by this module
-    PowerShellVersion      = '5.1'
+    PowerShellVersion    = '5.1'
 
     # Name of the PowerShell host required by this module
     # PowerShellHostName = ''
@@ -37,7 +37,7 @@
     # PowerShellHostVersion = ''
 
     # Minimum version of Microsoft .NET Framework required by this module. This prerequisite is valid for the PowerShell Desktop edition only.
-    DotNetFrameworkVersion = '4.7.2'
+    # DotNetFrameworkVersion = '4.7.2'  # Disabled for cross-platform support
 
     # Minimum version of the common language runtime (CLR) required by this module. This prerequisite is valid for the PowerShell Desktop edition only.
     # ClrVersion = ''
@@ -49,7 +49,7 @@
     # RequiredModules = @()
 
     # Assemblies that must be loaded prior to importing this module
-    RequiredAssemblies     = @('System.Windows.Forms', 'System.Drawing')
+    # RequiredAssemblies     = @('System.Windows.Forms', 'System.Drawing')  # Loaded conditionally for Windows
 
     # Script files (.ps1) that are run in the caller's environment prior to importing this module.
     # ScriptsToProcess = @()
@@ -64,38 +64,53 @@
     # NestedModules = @()
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-    FunctionsToExport      = @(
+    FunctionsToExport    = @(
+        # Core Functions
         'Start-PSMouseJiggler',
         'Stop-PSMouseJiggler',
         'Get-NewMousePosition',
+        'Move-Mouse',
+        'Start-MovementPattern',
+        'Stop-MovementPattern',
+        'Start-KeepAwake',
+
+        # GUI/TUI Functions
         'Show-PSMouseJigglerGUI',
+        'Show-PSMouseJigglerTUI',
+
+        # Configuration Functions
         'Get-Configuration',
         'Save-Configuration',
         'Update-Configuration',
         'Reset-Configuration',
         'Get-RandomMovementPattern',
-        'Move-Mouse',
-        'Start-MovementPattern',
-        'Stop-MovementPattern',
-        'Get-PSMJScheduledTasks',       # Updated name
-        'New-PSMJScheduledTask',        # Updated name
-        'Remove-PSMJScheduledTask',     # Updated name
-        'Start-PSMJScheduledTask',      # Updated name
-        'Stop-PSMJScheduledTask',       # Updated name
+
+        # Scheduled Task Functions
+        'Get-PSMJScheduledTasks',
+        'New-PSMJScheduledTask',
+        'Remove-PSMJScheduledTask',
+        'Start-PSMJScheduledTask',
+        'Stop-PSMJScheduledTask',
+
+        # Keep-Awake Methods (Windows-specific)
         'Prevent-SystemIdle',
         'Send-KeyboardInput',
         'Send-MouseInput',
-        'Start-KeepAwake'
+
+        # Platform Detection Helpers (v2.0.0)
+        'Get-OperatingSystemPlatform',
+        'Test-PlatformCapability',
+        'Show-DependencyInstallInstructions'
     )
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
-    CmdletsToExport        = @()
+    CmdletsToExport      = @()
 
     # Variables to export from this module
-    VariablesToExport      = '*'
+    VariablesToExport    = '*'
 
     # Aliases to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no aliases to export.
-    AliasesToExport        = @()
+    AliasesToExport      = @()
 
     # DSC resources to export from this module
     # DscResourcesToExport = @()
@@ -107,10 +122,10 @@
     # FileList = @()
 
     # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
-    PrivateData            = @{
+    PrivateData          = @{
         PSData = @{
             # Tags applied to this module. These help with module discovery in online galleries.
-            Tags                     = @('Mouse', 'Jiggler', 'Automation', 'Anti-Idle', 'GUI', 'Windows')
+            Tags                     = @('Mouse', 'Jiggler', 'Automation', 'Anti-Idle', 'GUI', 'TUI', 'Windows', 'Linux', 'macOS', 'Cross-Platform', 'Terminal')
 
             # A URL to the license for this module.
             LicenseUri               = 'https://github.com/PowerShellYoungTeam/PSMouseJiggler/blob/main/LICENSE'
@@ -123,6 +138,48 @@
 
             # ReleaseNotes of this module
             ReleaseNotes             = @'
+                Version 2.0.0 (November 2025) - MAJOR RELEASE: Cross-Platform Support
+                ⚠️ BREAKING CHANGES:
+                - Module now requires PowerShell 7+ for Linux and macOS (Windows PowerShell 5.1 still supported on Windows)
+                - Windows Forms assemblies no longer loaded by default on non-Windows platforms
+                - Some features are platform-specific (see documentation)
+
+                ✨ NEW FEATURES:
+                - 🌍 Cross-platform support: Works on Windows, Linux, and macOS
+                - 🖥️ Linux support with xdotool/ydotool for mouse/keyboard simulation
+                - 🍎 macOS support with cliclick for mouse/keyboard simulation
+                - 🔋 Platform-specific idle prevention:
+                  - Windows: SetThreadExecutionState API (existing)
+                  - Linux: systemd-inhibit integration
+                  - macOS: caffeinate wrapper
+                - 📟 Terminal UI (TUI) interface available on all platforms (requires Microsoft.PowerShell.ConsoleGuiTools module)
+                - 🎯 Platform detection with automatic feature adaptation
+                - 🛠️ Automated dependency installer script (Install-PSMouseJigglerDependencies.ps1)
+                - 📋 Platform-specific scheduled task support:
+                  - Windows: Task Scheduler (existing)
+                  - Linux: systemd timers with cron fallback
+                  - macOS: launchd integration
+
+                🔄 CHANGES:
+                - Core functions refactored with platform abstraction layer
+                - Windows Forms GUI remains Windows-only (fallback to TUI on other platforms)
+                - External tool detection with helpful installation guidance
+                - Graceful degradation when optional tools unavailable
+
+                📚 DOCUMENTATION:
+                - New PLATFORM_SUPPORT.md with detailed platform guides
+                - New MANUAL_TESTING.md for platform-specific testing procedures
+                - Updated all documentation with cross-platform examples
+                - Migration guide for users upgrading from v1.x
+
+                🔧 MAINTENANCE:
+                - v1.1.0 branch maintained for Windows-only users
+                - Multi-OS CI/CD testing (Windows, Linux, macOS)
+                - Platform-specific test suites with Pester tags
+
+                For users who prefer Windows-only version, install v1.1.0:
+                Install-Module PSMouseJiggler -RequiredVersion 1.1.0
+
                 Version 1.1.0 (October 2025)
                 - Added modern tabbed GUI interface with three main tabs:
                     - Basic Mode: Simple mouse jiggling controls
