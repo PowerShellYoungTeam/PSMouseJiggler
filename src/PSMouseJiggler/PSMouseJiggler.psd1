@@ -7,7 +7,7 @@
     RootModule             = 'PSMouseJiggler.psm1'
 
     # Version number of this module.
-    ModuleVersion          = '1.1.0'
+    ModuleVersion          = '2.0.0'
 
     # Supported PSEditions
     CompatiblePSEditions   = @('Desktop', 'Core')
@@ -92,8 +92,7 @@
         'Prevent-SystemIdle',
         'Send-KeyboardInput',
         'Send-MouseInput',
-        'Get-PSMJRecommendedMethods',
-        'Start-KeepAwake'
+        'Get-PSMJRecommendedMethods'
     )
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
@@ -131,6 +130,19 @@
 
             # ReleaseNotes of this module
             ReleaseNotes             = @'
+                Version 2.0.0 (BREAKING CHANGES)
+                - Removed Start-KeepAwake. Use Start-PSMouseJiggler -Methods / -Strategy instead:
+                    - Old: Start-KeepAwake -Methods @('MouseHardware','SystemAPI')
+                    - New: Start-PSMouseJiggler -Methods @('MouseHardware','SystemAPI')
+                - Added -Methods and -Strategy parameters directly to Start-PSMouseJiggler, unifying
+                  basic mouse jiggling and multi-method keep-awake into a single entry point
+                - Added new 'AppKeepAlive' strategy (SystemAPI + Keyboard) to keep some Windows apps
+                  active without visible mouse movement; available via -Strategy AppKeepAlive or
+                  Get-PSMJRecommendedMethods -Strategy AppKeepAlive
+                - Saved profiles no longer use a 'Mode' field (MouseJiggler/KeepAwake); profiles now
+                  simply carry Interval/Duration/MovementPattern/Methods/Strategy/Incognito and are
+                  started with Start-PSMouseJiggler
+
                 Version 1.1.0 (October 2025)
                 - Added modern tabbed GUI interface with three main tabs:
                     - Basic Mode: Simple mouse jiggling controls

@@ -31,7 +31,7 @@ Start-PSMouseJiggler
 Start-PSMouseJiggler -Incognito
 
 # Use advanced keep-awake methods
-Start-KeepAwake -Methods @('MouseHardware', 'SystemAPI')
+Start-PSMouseJiggler -Methods @('MouseHardware', 'SystemAPI')
 
 # Stop any running jiggler
 Stop-PSMouseJiggler
@@ -70,8 +70,7 @@ Show-PSMouseJigglerGUI
 
 ### Core Functions
 
-- `Start-PSMouseJiggler` - Start mouse jiggling with optional incognito mode
-- `Start-KeepAwake` - Advanced multi-method keep-awake functionality
+- `Start-PSMouseJiggler` - Start mouse jiggling with optional -Methods/-Strategy for advanced keep-awake
 - `Stop-PSMouseJiggler` - Stop any running jiggler or keep-awake process
 - `Show-PSMouseJigglerGUI` - Open the modern tabbed GUI interface
 
@@ -115,20 +114,23 @@ Start-PSMouseJiggler -Interval 2000 -MovementPattern 'Circular'
 Start-PSMouseJiggler -Duration 300 -Incognito
 
 # Use hardware mouse input for strict security policies
-Start-KeepAwake -Methods @('MouseHardware') -Interval 30000
+Start-PSMouseJiggler -Methods @('MouseHardware') -Interval 30000
 ```
 
 ### Advanced Keep-Awake Usage
 
 ```powershell
 # Use multiple methods for maximum reliability
-Start-KeepAwake -Methods @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI')
+Start-PSMouseJiggler -Methods @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI')
 
 # Keyboard only (no visible movement)
-Start-KeepAwake -Methods @('Keyboard') -Interval 30000 -Incognito
+Start-PSMouseJiggler -Methods @('Keyboard') -Interval 30000 -Incognito
 
 # System API only (minimal resource usage)
-Start-KeepAwake -Methods @('SystemAPI') -Interval 60000
+Start-PSMouseJiggler -Methods @('SystemAPI') -Interval 60000
+
+# AppKeepAlive strategy: SystemAPI + Keyboard, keeps some apps active without moving the mouse
+Start-PSMouseJiggler -Strategy AppKeepAlive -Interval 30000
 ```
 
 ### GUI Usage
@@ -204,6 +206,16 @@ The GUI provides three main tabs:
 - Descriptions and recommended scenarios included
 
 ## Version History
+
+### Version 2.0.0
+
+- **BREAKING**: Removed `Start-KeepAwake`. Use `Start-PSMouseJiggler -Methods`/`-Strategy` instead
+- Added `-Methods` and `-Strategy` parameters to `Start-PSMouseJiggler`, unifying basic mouse
+  jiggling and multi-method keep-awake into a single entry point
+- Added `AppKeepAlive` strategy (SystemAPI + Keyboard) to keep some Windows apps active without
+  visible mouse movement
+- Saved profiles no longer use a `Mode` field; they carry Interval/Duration/MovementPattern/
+  Methods/Strategy/Incognito and are started with `Start-PSMJProfile`
 
 ### Version 1.1.0 (October 2025)
 

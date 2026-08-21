@@ -51,7 +51,6 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
                 'Send-KeyboardInput',
                 'Send-MouseInput',
                 'Get-PSMJRecommendedMethods',
-                'Start-KeepAwake',
                 'Start-PSMJProfile',
                 'Get-PSMJDiagnostics'
             )
@@ -72,7 +71,7 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
             { Stop-PSMouseJiggler } | Should -Not -Throw
 
             # Step 3: Start the keep-awake functionality with a short duration
-            { Start-KeepAwake -Duration 1 } | Should -Not -Throw
+            { Start-PSMouseJiggler -Methods @('SystemAPI', 'Keyboard') -Duration 1 } | Should -Not -Throw
             Start-Sleep -Seconds 2
 
             # Step 4: Stop the keep-awake functionality
@@ -85,7 +84,7 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
 
                 Start-PSMouseJiggler -Duration 10
                 $warning = $null
-                Start-KeepAwake -Incognito -WarningVariable warning
+                Start-PSMouseJiggler -Methods @('SystemAPI', 'Keyboard') -Incognito -WarningVariable warning
 
                 $warning | Should -BeNullOrEmpty
                 Should -Invoke Clear-Host -Exactly 1
@@ -99,7 +98,7 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
         }
 
         It 'Should reject negative durations' {
-            { Start-KeepAwake -Duration -1 } | Should -Throw
+            { Start-PSMouseJiggler -Methods @('SystemAPI') -Duration -1 } | Should -Throw
         }
 
         It 'Should use defaults when a configuration contains invalid values' {
@@ -115,7 +114,6 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
         It 'Should save, retrieve, list, and remove a profile' {
             $configPath = Join-Path $TestDrive 'profiles.json'
             $profile = [PSCustomObject]@{
-                Mode            = 'MouseJiggler'
                 Interval        = 1500
                 Duration        = 60
                 MovementPattern = 'Circular'
@@ -134,9 +132,9 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
             @(Get-PSMJProfile -ConfigFilePath $configPath).Count | Should -Be 0
         }
 
-        It 'Should reject profiles with unsupported modes' {
+        It 'Should reject profiles with invalid method names' {
             $profile = [PSCustomObject]@{
-                Mode     = 'Unsupported'
+                Methods  = @('Unsupported')
                 Interval = 1000
                 Duration = 0
             }
@@ -147,7 +145,6 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
         It 'Should execute a saved mouse jiggler profile' {
             $configPath = Join-Path $TestDrive 'mouse-profile.json'
             $profile = [PSCustomObject]@{
-                Mode            = 'MouseJiggler'
                 Interval        = 1000
                 Duration        = 1
                 MovementPattern = 'Random'
@@ -162,7 +159,6 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
         It 'Should execute a saved keep-awake profile' {
             $configPath = Join-Path $TestDrive 'keepawake-profile.json'
             $profile = [PSCustomObject]@{
-                Mode     = 'KeepAwake'
                 Methods  = @('SystemAPI')
                 Interval = 1000
                 Duration = 1
@@ -174,10 +170,24 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
             { Stop-PSMouseJiggler } | Should -Not -Throw
         }
 
+        It 'Should execute a saved AppKeepAlive profile' {
+            $configPath = Join-Path $TestDrive 'appkeepalive-profile.json'
+            $profile = [PSCustomObject]@{
+                Strategy = 'AppKeepAlive'
+                Interval = 1000
+                Duration = 1
+            }
+
+            Save-PSMJProfile -Name 'ShortAppKeepAlive' -Profile $profile -ConfigFilePath $configPath | Out-Null
+            { Start-PSMJProfile -Name 'ShortAppKeepAlive' -ConfigFilePath $configPath } | Should -Not -Throw
+            Start-Sleep -Seconds 2
+            { Stop-PSMouseJiggler } | Should -Not -Throw
+        }
+
         It 'Should return diagnostics for the module and saved profiles' {
             $configPath = Join-Path $TestDrive 'diagnostics.json'
             $profile = [PSCustomObject]@{
-                Mode     = 'KeepAwake'
+                Methods  = @('SystemAPI')
                 Interval = 30000
                 Duration = 0
             }
@@ -233,7 +243,6 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
             InModuleScope PSMouseJiggler {
                 $configPath = Join-Path $TestDrive 'scheduled-profile.json'
                 $profile = [PSCustomObject]@{
-                    Mode     = 'KeepAwake'
                     Methods  = @('SystemAPI')
                     Interval = 30000
                     Duration = 0
@@ -260,6 +269,7 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
         It 'Should recommend methods for each keep-awake strategy' {
             @(Get-PSMJRecommendedMethods -Strategy LowImpact) | Should -Be @('SystemAPI')
             @(Get-PSMJRecommendedMethods -Strategy Compatibility) | Should -Be @('MouseSoftware')
+            @(Get-PSMJRecommendedMethods -Strategy AppKeepAlive) | Should -Be @('SystemAPI', 'Keyboard')
 
             $adaptiveMethods = @(Get-PSMJRecommendedMethods -Strategy Adaptive)
             $adaptiveMethods.Count | Should -BeGreaterThan 0
@@ -267,9 +277,23 @@ Describe 'PSMouseJiggler Basic Functionality Tests' {
         }
 
         It 'Should execute an adaptive keep-awake session' {
-            { Start-KeepAwake -Strategy Adaptive -Duration 1 -Interval 1000 } | Should -Not -Throw
+            { Start-PSMouseJiggler -Strategy Adaptive -Duration 1 -Interval 1000 } | Should -Not -Throw
             Start-Sleep -Seconds 2
             { Stop-PSMouseJiggler } | Should -Not -Throw
+        }
+
+        It 'Should execute an AppKeepAlive session without moving the mouse' {
+            { Start-PSMouseJiggler -Strategy AppKeepAlive -Duration 1 -Interval 1000 } | Should -Not -Throw
+            Start-Sleep -Seconds 2
+            { Stop-PSMouseJiggler } | Should -Not -Throw
+        }
+
+        It 'Should still support all movement patterns via the default Methods' {
+            foreach ($pattern in @('Random', 'Horizontal', 'Vertical', 'Circular')) {
+                { Start-PSMouseJiggler -MovementPattern $pattern -Duration 1 -Interval 1000 } | Should -Not -Throw
+                Start-Sleep -Seconds 2
+                { Stop-PSMouseJiggler } | Should -Not -Throw
+            }
         }
 
         It 'Should reconcile completed jobs before reporting or starting again' {

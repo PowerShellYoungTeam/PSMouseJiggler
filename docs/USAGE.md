@@ -146,19 +146,22 @@ Start-PSMouseJiggler -Interval 1500 -MovementPattern Horizontal -Duration 7200 -
 
 ```powershell
 # Use all methods
-Start-KeepAwake -Methods @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI')
+Start-PSMouseJiggler -Methods @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI')
 
 # Use specific methods
-Start-KeepAwake -Methods @('MouseHardware', 'SystemAPI') -Interval 30000
+Start-PSMouseJiggler -Methods @('MouseHardware', 'SystemAPI') -Interval 30000
 
 # Keyboard only with incognito mode
-Start-KeepAwake -Methods @('Keyboard') -Interval 30000 -Incognito
+Start-PSMouseJiggler -Methods @('Keyboard') -Interval 30000 -Incognito
 
 # System API only (minimal resource usage)
-Start-KeepAwake -Methods @('SystemAPI') -Interval 30000
+Start-PSMouseJiggler -Methods @('SystemAPI') -Interval 30000
 
 # Custom interval (15 seconds)
-Start-KeepAwake -Methods @('MouseSoftware', 'Keyboard') -Interval 15000 -Duration 3600
+Start-PSMouseJiggler -Methods @('MouseSoftware', 'Keyboard') -Interval 15000 -Duration 3600
+
+# AppKeepAlive strategy: SystemAPI + Keyboard, keeps some apps active without moving the mouse
+Start-PSMouseJiggler -Strategy AppKeepAlive -Interval 30000
 ```
 
 ### Stopping Jiggling
@@ -218,7 +221,7 @@ Run discreetly without visible console output:
 ```powershell
 # Command line incognito
 Start-PSMouseJiggler -Incognito
-Start-KeepAwake -Incognito
+Start-PSMouseJiggler -Methods @('SystemAPI') -Incognito
 
 # GUI incognito - check the checkbox before starting
 # - Minimizes window when started
@@ -339,7 +342,7 @@ Start-PSMouseJiggler -MovementPattern Random -Interval 1000 -Duration 7200 -Inco
 For systems with strict power policies:
 
 ```powershell
-Start-KeepAwake -Methods @('MouseHardware', 'SystemAPI') -Interval 30000 -Incognito
+Start-PSMouseJiggler -Methods @('MouseHardware', 'SystemAPI') -Interval 30000 -Incognito
 ```
 
 ### Example 3: Overnight Monitoring
@@ -358,7 +361,7 @@ Start-PSMouseJiggler -MovementPattern Circular -Interval 30000
 System API only for minimum CPU usage:
 
 ```powershell
-Start-KeepAwake -Methods @('SystemAPI') -Interval 60000
+Start-PSMouseJiggler -Methods @('SystemAPI') -Interval 60000
 ```
 
 ### Example 5: Scheduled Workday Jiggling
@@ -367,7 +370,7 @@ Start-KeepAwake -Methods @('SystemAPI') -Interval 60000
 # Create task for weekday work hours (9 AM - 5 PM)
 New-PSMJScheduledTask `
     -TaskName "WorkHoursJiggler" `
-    -Action "powershell.exe -Command 'Start-KeepAwake -Methods @(''MouseSoftware'', ''SystemAPI'') -Duration 28800 -Incognito'" `
+    -Action "powershell.exe -Command 'Start-PSMouseJiggler -Methods @(''MouseSoftware'', ''SystemAPI'') -Duration 28800 -Incognito'" `
     -StartTime (Get-Date "09:00")
 ```
 
@@ -379,11 +382,11 @@ Start-PSMouseJiggler -Interval 1000 -Duration 60
 Stop-PSMouseJiggler
 
 # Test hardware mouse only
-Start-KeepAwake -Methods @('MouseHardware') -Interval 1000 -Duration 60
+Start-PSMouseJiggler -Methods @('MouseHardware') -Interval 1000 -Duration 60
 Stop-PSMouseJiggler
 
 # Test keyboard only
-Start-KeepAwake -Methods @('Keyboard') -Interval 5000 -Duration 60
+Start-PSMouseJiggler -Methods @('Keyboard') -Interval 5000 -Duration 60
 Stop-PSMouseJiggler
 ```
 
@@ -394,7 +397,6 @@ Stop-PSMouseJiggler
 ```powershell
 # Get detailed help for any command
 Get-Help Start-PSMouseJiggler -Full
-Get-Help Start-KeepAwake -Full
 Get-Help Show-PSMouseJigglerGUI -Full
 
 # Get examples only
