@@ -370,7 +370,7 @@ Start-PSMouseJiggler -Methods @('SystemAPI') -Interval 60000
 # Create task for weekday work hours (9 AM - 5 PM)
 New-PSMJScheduledTask `
     -TaskName "WorkHoursJiggler" `
-    -Action "powershell.exe -Command 'Start-PSMouseJiggler -Methods @(''MouseSoftware'', ''SystemAPI'') -Duration 28800 -Incognito'" `
+    -Action "Import-Module PSMouseJiggler; Start-PSMouseJiggler -Methods @('MouseSoftware', 'SystemAPI') -Duration 28800 -Incognito" `
     -StartTime (Get-Date "09:00")
 ```
 
