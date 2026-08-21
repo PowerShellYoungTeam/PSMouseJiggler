@@ -297,13 +297,13 @@ PSMouseJiggler uses PSMJ-prefixed function names to avoid conflicts with other P
 # Create task to start jiggling at 9 AM daily
 New-PSMJScheduledTask `
     -TaskName "MorningJiggler" `
-    -Action "powershell.exe -Command 'Start-PSMouseJiggler -Duration 28800'" `
+    -Action "Import-Module PSMouseJiggler; Start-PSMouseJiggler -Duration 28800" `
     -StartTime (Get-Date "09:00")
 
 # Create repeating task (every 4 hours)
 New-PSMJScheduledTask `
     -TaskName "PeriodicJiggler" `
-    -Action "powershell.exe -Command 'Start-PSMouseJiggler -Duration 3600'" `
+    -Action "Import-Module PSMouseJiggler; Start-PSMouseJiggler -Duration 3600" `
     -StartTime (Get-Date).AddMinutes(5) `
     -RepeatIntervalMinutes 240
 ```
