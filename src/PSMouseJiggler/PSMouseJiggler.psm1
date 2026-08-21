@@ -12,7 +12,12 @@ $script:JigglingJob = $null
 $script:JigglingActive = $false
 
 function Sync-PSMJState {
-    if (-not $script:JigglingActive -or $null -eq $script:JigglingJob) {
+    if (-not $script:JigglingActive) {
+        return
+    }
+
+    if ($null -eq $script:JigglingJob) {
+        $script:JigglingActive = $false
         return
     }
 
