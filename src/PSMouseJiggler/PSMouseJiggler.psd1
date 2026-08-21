@@ -73,11 +73,18 @@
         'Save-Configuration',
         'Update-Configuration',
         'Reset-Configuration',
+        'Get-PSMJProfile',
+        'Save-PSMJProfile',
+        'Remove-PSMJProfile',
+        'Start-PSMJProfile',
+        'Get-PSMJDiagnostics',
         'Get-RandomMovementPattern',
         'Move-Mouse',
         'Start-MovementPattern',
         'Stop-MovementPattern',
         'Get-PSMJScheduledTasks',       # Updated name
+        'Get-PSMJScheduledTaskStatus',
+        'New-PSMJScheduledProfileTask',
         'New-PSMJScheduledTask',        # Updated name
         'Remove-PSMJScheduledTask',     # Updated name
         'Start-PSMJScheduledTask',      # Updated name
@@ -85,6 +92,7 @@
         'Prevent-SystemIdle',
         'Send-KeyboardInput',
         'Send-MouseInput',
+        'Get-PSMJRecommendedMethods',
         'Start-KeepAwake'
     )
 

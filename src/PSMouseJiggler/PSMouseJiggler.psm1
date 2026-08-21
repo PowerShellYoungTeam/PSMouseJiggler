@@ -11,6 +11,21 @@ Add-Type -AssemblyName System.Drawing
 $script:JigglingJob = $null
 $script:JigglingActive = $false
 
+function Sync-PSMJState {
+    if (-not $script:JigglingActive -or $null -eq $script:JigglingJob) {
+        return
+    }
+
+    $jobState = [string]$script:JigglingJob.State
+    if ($jobState -in @('Completed', 'Failed', 'Stopped')) {
+        if ($script:JigglingJob -is [System.Management.Automation.Job]) {
+            Remove-Job -Job $script:JigglingJob -Force -ErrorAction SilentlyContinue
+        }
+        $script:JigglingJob = $null
+        $script:JigglingActive = $false
+    }
+}
+
 #region Core Mouse Jiggling Functions
 
 <#
@@ -44,6 +59,7 @@ function Start-PSMouseJiggler {
     [CmdletBinding()]
     param (
         [Parameter()]
+        [ValidateRange(1, 2147483647)]
         [int]$Interval = 1000,
 
         [Parameter()]
@@ -51,14 +67,21 @@ function Start-PSMouseJiggler {
         [string]$MovementPattern = 'Random',
 
         [Parameter()]
+        [ValidateRange(0, 2147483647)]
         [int]$Duration = 0,
 
         [Parameter()]
         [switch]$Incognito
     )
 
+    Sync-PSMJState
     if ($script:JigglingActive) {
-        Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
+        if ($Incognito) {
+            Clear-Host
+        }
+        else {
+            Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
+        }
         return
     }
 
@@ -140,6 +163,7 @@ function Stop-PSMouseJiggler {
     [CmdletBinding()]
     param()
 
+    Sync-PSMJState
     if (-not $script:JigglingActive) {
         Write-Warning "PSMouseJiggler is not currently running."
         return
@@ -919,6 +943,39 @@ INCOGNITO MODE:
 
 #region Configuration Functions
 
+function Assert-Configuration {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [PSCustomObject]$Configuration
+    )
+
+    $movementPattern = $Configuration.PSObject.Properties['MovementPattern']
+    if ($null -ne $movementPattern -and $movementPattern.Value -notin @('Random', 'Horizontal', 'Vertical', 'Circular')) {
+        throw "MovementPattern must be Random, Horizontal, Vertical, or Circular."
+    }
+
+    foreach ($propertyName in @('MovementSpeed', 'JiggleInterval')) {
+        $property = $Configuration.PSObject.Properties[$propertyName]
+        if ($null -ne $property -and ($property.Value -isnot [int] -and $property.Value -isnot [long] -and $property.Value -isnot [double])) {
+            throw "$propertyName must be a number."
+        }
+        if ($null -ne $property -and $property.Value -lt 1) {
+            throw "$propertyName must be greater than zero."
+        }
+    }
+
+    $duration = $Configuration.PSObject.Properties['Duration']
+    if ($null -ne $duration -and ($duration.Value -isnot [int] -and $duration.Value -isnot [long] -and $duration.Value -isnot [double])) {
+        throw "Duration must be a number."
+    }
+    if ($null -ne $duration -and $duration.Value -lt 0) {
+        throw "Duration cannot be negative."
+    }
+
+    return $Configuration
+}
+
 <#
 .SYNOPSIS
     Gets configuration settings from the config file.
@@ -948,6 +1005,7 @@ function Get-Configuration {
     if (Test-Path $ConfigFilePath) {
         try {
             $config = Get-Content -Path $ConfigFilePath -Raw | ConvertFrom-Json
+            Assert-Configuration -Configuration $config | Out-Null
             Write-Verbose "Configuration loaded from $ConfigFilePath"
             return $config
         }
@@ -995,6 +1053,7 @@ function Save-Configuration {
     }
 
     try {
+        Assert-Configuration -Configuration $Configuration | Out-Null
         $configDir = Split-Path -Parent $ConfigFilePath
         if (-not (Test-Path $configDir)) {
             New-Item -ItemType Directory -Path $configDir -Force | Out-Null
@@ -1045,6 +1104,202 @@ function Update-Configuration {
     Save-Configuration -Configuration $config -ConfigFilePath $ConfigFilePath
 }
 
+function Get-PSMJProfile {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [string]$Name,
+
+        [Parameter()]
+        [string]$ConfigFilePath
+    )
+
+    $config = Get-Configuration -ConfigFilePath $ConfigFilePath
+    $profilesProperty = $config.PSObject.Properties['Profiles']
+    if ($null -eq $profilesProperty -or $null -eq $profilesProperty.Value) {
+        return @()
+    }
+
+    if ($Name) {
+        $profileProperty = $profilesProperty.Value.PSObject.Properties[$Name]
+        if ($null -eq $profileProperty) {
+            Write-Error "Profile '$Name' was not found."
+            return
+        }
+
+        $profile = [PSCustomObject]@{ Name = $Name }
+        foreach ($property in $profileProperty.Value.PSObject.Properties) {
+            $profile | Add-Member -MemberType NoteProperty -Name $property.Name -Value $property.Value
+        }
+        return $profile
+    }
+
+    foreach ($profileProperty in $profilesProperty.Value.PSObject.Properties) {
+        $profile = [PSCustomObject]@{ Name = $profileProperty.Name }
+        foreach ($property in $profileProperty.Value.PSObject.Properties) {
+            $profile | Add-Member -MemberType NoteProperty -Name $property.Name -Value $property.Value
+        }
+        $profile
+    }
+}
+
+function Save-PSMJProfile {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Name,
+
+        [Parameter(Mandatory)]
+        [PSCustomObject]$Profile,
+
+        [Parameter()]
+        [string]$ConfigFilePath
+    )
+
+    $mode = $Profile.PSObject.Properties['Mode']
+    if ($null -eq $mode -or $mode.Value -notin @('MouseJiggler', 'KeepAwake')) {
+        throw "Profile Mode must be MouseJiggler or KeepAwake."
+    }
+
+    $interval = $Profile.PSObject.Properties['Interval']
+    if ($null -ne $interval -and $interval.Value -lt 1) {
+        throw "Profile Interval must be greater than zero."
+    }
+
+    $duration = $Profile.PSObject.Properties['Duration']
+    if ($null -ne $duration -and $duration.Value -lt 0) {
+        throw "Profile Duration cannot be negative."
+    }
+
+    $config = Get-Configuration -ConfigFilePath $ConfigFilePath
+    $profilesProperty = $config.PSObject.Properties['Profiles']
+    if ($null -eq $profilesProperty -or $null -eq $profilesProperty.Value) {
+        $config | Add-Member -MemberType NoteProperty -Name Profiles -Value ([PSCustomObject]@{}) -Force
+    }
+
+    $profileCopy = [PSCustomObject]@{}
+    foreach ($property in $Profile.PSObject.Properties) {
+        if ($property.Name -ne 'Name') {
+            $profileCopy | Add-Member -MemberType NoteProperty -Name $property.Name -Value $property.Value
+        }
+    }
+
+    $config.Profiles | Add-Member -MemberType NoteProperty -Name $Name -Value $profileCopy -Force
+    Save-Configuration -Configuration $config -ConfigFilePath $ConfigFilePath
+    Get-PSMJProfile -Name $Name -ConfigFilePath $ConfigFilePath
+}
+
+function Remove-PSMJProfile {
+    [CmdletBinding(SupportsShouldProcess)]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Name,
+
+        [Parameter()]
+        [string]$ConfigFilePath
+    )
+
+    $config = Get-Configuration -ConfigFilePath $ConfigFilePath
+    $profilesProperty = $config.PSObject.Properties['Profiles']
+    $profileProperty = if ($null -ne $profilesProperty) { $profilesProperty.Value.PSObject.Properties[$Name] }
+    if ($null -eq $profileProperty) {
+        Write-Error "Profile '$Name' was not found."
+        return
+    }
+
+    if ($PSCmdlet.ShouldProcess($Name, 'Remove saved profile')) {
+        $profilesProperty.Value.PSObject.Properties.Remove($Name)
+        Save-Configuration -Configuration $config -ConfigFilePath $ConfigFilePath
+    }
+}
+
+function Start-PSMJProfile {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Name,
+
+        [Parameter()]
+        [string]$ConfigFilePath
+    )
+
+    $profile = Get-PSMJProfile -Name $Name -ConfigFilePath $ConfigFilePath -ErrorAction Stop
+    $incognito = [bool]$profile.Incognito
+
+    switch ($profile.Mode) {
+        'MouseJiggler' {
+            $parameters = @{
+                Interval        = if ($null -ne $profile.Interval) { [int]$profile.Interval } else { 1000 }
+                MovementPattern = if ($profile.MovementPattern) { [string]$profile.MovementPattern } else { 'Random' }
+                Duration        = if ($null -ne $profile.Duration) { [int]$profile.Duration } else { 0 }
+                Incognito       = $incognito
+            }
+            Start-PSMouseJiggler @parameters
+        }
+        'KeepAwake' {
+            $methods = if ($null -ne $profile.Methods) { @($profile.Methods) } else { @('All') }
+            $parameters = @{
+                Methods   = $methods
+                Strategy  = if ($profile.Strategy) { [string]$profile.Strategy } else { 'Manual' }
+                Interval  = if ($null -ne $profile.Interval) { [int]$profile.Interval } else { 30000 }
+                Duration  = if ($null -ne $profile.Duration) { [int]$profile.Duration } else { 0 }
+                Incognito = $incognito
+            }
+            Start-KeepAwake @parameters
+        }
+        default {
+            throw "Profile '$Name' has unsupported mode '$($profile.Mode)'."
+        }
+    }
+}
+
+function Get-PSMJDiagnostics {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [string]$ConfigFilePath
+    )
+
+    Sync-PSMJState
+    $configurationValid = $true
+    $configuration = $null
+    try {
+        $configuration = Get-Configuration -ConfigFilePath $ConfigFilePath -WarningAction Stop
+    }
+    catch {
+        $configurationValid = $false
+    }
+
+    $jobState = 'NotStarted'
+    if ($null -ne $script:JigglingJob) {
+        $jobState = [string]$script:JigglingJob.State
+    }
+
+    $profileCount = 0
+    if ($null -ne $configuration) {
+        $profilesProperty = $configuration.PSObject.Properties['Profiles']
+        if ($null -ne $profilesProperty -and $null -ne $profilesProperty.Value) {
+            $profileCount = @($profilesProperty.Value.PSObject.Properties).Count
+        }
+    }
+
+    $module = Get-Module -Name PSMouseJiggler | Select-Object -First 1
+    [PSCustomObject]@{
+        ModuleName         = 'PSMouseJiggler'
+        ModuleVersion      = if ($null -ne $module) { [string]$module.Version } else { $null }
+        PowerShellVersion  = [string]$PSVersionTable.PSVersion
+        OperatingSystem    = [string]$PSVersionTable.OS
+        IsRunning          = [bool]$script:JigglingActive
+        JobState           = $jobState
+        ConfigurationValid = $configurationValid
+        ProfileCount       = $profileCount
+        ConfigFilePath     = if ($ConfigFilePath) { $ConfigFilePath } else { $null }
+    }
+}
+
 <#
 .SYNOPSIS
     Resets configuration to default values.
@@ -1080,6 +1335,7 @@ function Get-DefaultConfiguration {
         ScheduledTimes       = @()
         AutoJiggle           = $false
         Duration             = 0
+        Profiles             = [PSCustomObject]@{}
         GuiSettings          = @{
             WindowPosition   = @{
                 X = 0
@@ -1183,6 +1439,7 @@ function Start-MovementPattern {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
+        [ValidateRange(0, 2147483647)]
         [int]$DurationInSeconds
     )
 
@@ -1250,6 +1507,72 @@ function Get-PSMJScheduledTasks {
     }
 }
 
+function Get-PSMJScheduledTaskStatus {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [string]$TaskName = 'PSMouseJiggler*'
+    )
+
+    try {
+        $tasks = @(Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop)
+        foreach ($task in $tasks) {
+            $taskInfo = Get-ScheduledTaskInfo -TaskName $task.TaskName -TaskPath $task.TaskPath -ErrorAction Stop
+            [PSCustomObject]@{
+                TaskName       = $task.TaskName
+                TaskPath       = $task.TaskPath
+                State          = [string]$task.State
+                Enabled        = [bool]$task.Settings.Enabled
+                NextRunTime    = $taskInfo.NextRunTime
+                LastRunTime    = $taskInfo.LastRunTime
+                LastTaskResult = $taskInfo.LastTaskResult
+            }
+        }
+    }
+    catch {
+        Write-Warning "Error getting scheduled task status: $($_.Exception.Message)"
+        return @()
+    }
+}
+
+function New-PSMJScheduledProfileTask {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$TaskName,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$ProfileName,
+
+        [Parameter(Mandatory)]
+        [DateTime]$StartTime,
+
+        [Parameter()]
+        [ValidateRange(0, 2147483647)]
+        [int]$RepeatIntervalMinutes = 0,
+
+        [Parameter()]
+        [string]$ConfigFilePath
+    )
+
+    Get-PSMJProfile -Name $ProfileName -ConfigFilePath $ConfigFilePath -ErrorAction Stop | Out-Null
+
+    $escapedProfileName = $ProfileName.Replace("'", "''")
+    $action = "Import-Module PSMouseJiggler -ErrorAction Stop; Start-PSMJProfile -Name '$escapedProfileName'"
+    if ($ConfigFilePath) {
+        $escapedConfigPath = $ConfigFilePath.Replace("'", "''")
+        $action += " -ConfigFilePath '$escapedConfigPath'"
+    }
+
+    New-PSMJScheduledTask `
+        -TaskName $TaskName `
+        -Action $action `
+        -StartTime $StartTime `
+        -RepeatIntervalMinutes $RepeatIntervalMinutes
+}
+
 <#
 .SYNOPSIS
     Creates a new scheduled task for PSMouseJiggler.
@@ -1286,6 +1609,7 @@ function New-PSMJScheduledTask {
         [DateTime]$StartTime,
 
         [Parameter()]
+        [ValidateRange(0, 2147483647)]
         [int]$RepeatIntervalMinutes = 0
     )
 
@@ -1559,6 +1883,29 @@ function Send-MouseInput {
     Write-Verbose "Sent hardware-level mouse movement: X=$XOffset, Y=$YOffset"
 }
 
+function Get-PSMJRecommendedMethods {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [ValidateSet('Adaptive', 'LowImpact', 'Compatibility')]
+        [string]$Strategy = 'Adaptive'
+    )
+
+    if ($Strategy -eq 'LowImpact') {
+        return @('SystemAPI')
+    }
+
+    if ($Strategy -eq 'Compatibility') {
+        return @('MouseSoftware')
+    }
+
+    if ($env:OS -eq 'Windows_NT') {
+        return @('SystemAPI', 'MouseHardware')
+    }
+
+    return @('MouseSoftware')
+}
+
 <#
 .SYNOPSIS
     Keeps the system awake using multiple methods.
@@ -1591,17 +1938,29 @@ function Start-KeepAwake {
         [string[]]$Methods = @('All'),
 
         [Parameter()]
+        [ValidateSet('Manual', 'Adaptive')]
+        [string]$Strategy = 'Manual',
+
+        [Parameter()]
+        [ValidateRange(1, 2147483647)]
         [int]$Interval = 30000,
 
         [Parameter()]
+        [ValidateRange(0, 2147483647)]
         [int]$Duration = 0,
 
         [Parameter()]
         [switch]$Incognito
     )
 
+    Sync-PSMJState
     if ($script:JigglingActive) {
-        Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
+        if ($Incognito) {
+            Clear-Host
+        }
+        else {
+            Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
+        }
         return
     }
 
@@ -1611,7 +1970,10 @@ function Start-KeepAwake {
     $startTime = Get-Date
 
     # If 'All' is specified, use all methods
-    if ($Methods -contains 'All') {
+    if ($Strategy -eq 'Adaptive') {
+        $Methods = Get-PSMJRecommendedMethods -Strategy Adaptive
+    }
+    elseif ($Methods -contains 'All') {
         $Methods = @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI')
     }
 
@@ -1764,11 +2126,18 @@ Export-ModuleMember -Function @(
     'Save-Configuration',
     'Update-Configuration',
     'Reset-Configuration',
+    'Get-PSMJProfile',
+    'Save-PSMJProfile',
+    'Remove-PSMJProfile',
+    'Start-PSMJProfile',
+    'Get-PSMJDiagnostics',
     'Get-RandomMovementPattern',
     'Move-Mouse',
     'Start-MovementPattern',
     'Stop-MovementPattern',
     'Get-PSMJScheduledTasks',        # Updated name
+    'Get-PSMJScheduledTaskStatus',
+    'New-PSMJScheduledProfileTask',
     'New-PSMJScheduledTask',         # Updated name
     'Remove-PSMJScheduledTask',      # Updated name
     'Start-PSMJScheduledTask',       # Updated name
@@ -1777,5 +2146,6 @@ Export-ModuleMember -Function @(
     'Prevent-SystemIdle',
     'Send-KeyboardInput',
     'Send-MouseInput',
+    'Get-PSMJRecommendedMethods',
     'Start-KeepAwake'
 )

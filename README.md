@@ -90,6 +90,7 @@ Stop-PSMouseJiggler
 - `Start-PSMouseJiggler` - Start basic mouse jiggling with pattern-based movement
 - `Stop-PSMouseJiggler` - Stop the currently running mouse jiggler or keep-awake
 - `Start-KeepAwake` - Advanced multi-method keep-awake functionality
+- `Get-PSMJRecommendedMethods` - Show methods selected by an intelligent strategy
 - `Show-PSMouseJigglerGUI` - Launch the graphical user interface
 
 #### Configuration Functions
@@ -97,9 +98,42 @@ Stop-PSMouseJiggler
 - `Save-Configuration` - Save configuration to file
 - `Update-Configuration` - Update specific configuration values
 - `Reset-Configuration` - Reset to default configuration
+- `Get-PSMJProfile` - List saved profiles or retrieve one by name
+- `Save-PSMJProfile` - Save or replace a named profile
+- `Remove-PSMJProfile` - Remove a saved profile
+- `Start-PSMJProfile` - Start a saved mouse-jiggler or keep-awake profile
+- `Get-PSMJDiagnostics` - Report runtime, configuration, and profile health
+
+Example saved profile:
+
+```powershell
+$profile = [PSCustomObject]@{
+   Mode            = 'MouseJiggler'
+   Interval        = 1500
+   Duration        = 3600
+   MovementPattern = 'Circular'
+   Incognito       = $true
+}
+
+Save-PSMJProfile -Name 'Presentation' -Profile $profile
+Get-PSMJProfile -Name 'Presentation'
+Start-PSMJProfile -Name 'Presentation'
+Get-PSMJDiagnostics | Format-List
+Remove-PSMJProfile -Name 'Presentation'
+```
+
+Keep-awake strategies are opt-in. Existing calls use `Manual` behavior. Use `Adaptive` to select a low-disruption method combination for the current Windows environment, `LowImpact` to use the Windows power API only, or `Compatibility` to use standard software mouse movement:
+
+```powershell
+Get-PSMJRecommendedMethods -Strategy Adaptive
+Start-KeepAwake -Strategy Adaptive -Interval 30000
+Start-KeepAwake -Strategy LowImpact -Duration 3600
+```
 
 #### Scheduled Task Functions (with PSMJ prefix to avoid conflicts)
 - `Get-PSMJScheduledTasks` - List PSMouseJiggler scheduled tasks
+- `Get-PSMJScheduledTaskStatus` - Return normalized task status for monitoring or GUI use
+- `New-PSMJScheduledProfileTask` - Schedule a saved profile by name
 - `New-PSMJScheduledTask` - Create a new scheduled task
 - `Remove-PSMJScheduledTask` - Remove a scheduled task
 - `Start-PSMJScheduledTask` - Manually start a scheduled task

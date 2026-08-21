@@ -404,6 +404,24 @@ Get-Help Start-PSMouseJiggler -Examples
 Get-Help Start-PSMouseJiggler -Parameter MovementPattern
 ```
 
+### Scheduled Task Status
+
+Use the normalized status command to inspect task state without parsing raw Task Scheduler objects:
+
+```powershell
+Get-PSMJScheduledTaskStatus | Format-Table TaskName, State, Enabled, NextRunTime, LastTaskResult
+```
+
+To schedule a saved profile, create the profile first and then reference it by name:
+
+```powershell
+New-PSMJScheduledProfileTask `
+   -TaskName 'PSMJ-WorkHours' `
+   -ProfileName 'Presentation' `
+   -StartTime (Get-Date).AddMinutes(5) `
+   -RepeatIntervalMinutes 30
+```
+
 ### GUI Help
 
 Click the "? Help" button in the GUI for comprehensive help information.
