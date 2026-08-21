@@ -1345,13 +1345,23 @@ function Save-PSMJProfile {
     }
 
     $interval = $Profile.PSObject.Properties['Interval']
-    if ($null -ne $interval -and $interval.Value -lt 1) {
-        throw "Profile Interval must be greater than zero."
+    if ($null -ne $interval) {
+        if ($interval.Value -isnot [int] -and $interval.Value -isnot [long] -and $interval.Value -isnot [double]) {
+            throw "Profile Interval must be a number."
+        }
+        if ([double]$interval.Value -lt 1) {
+            throw "Profile Interval must be greater than zero."
+        }
     }
 
     $duration = $Profile.PSObject.Properties['Duration']
-    if ($null -ne $duration -and $duration.Value -lt 0) {
-        throw "Profile Duration cannot be negative."
+    if ($null -ne $duration) {
+        if ($duration.Value -isnot [int] -and $duration.Value -isnot [long] -and $duration.Value -isnot [double]) {
+            throw "Profile Duration must be a number."
+        }
+        if ([double]$duration.Value -lt 0) {
+            throw "Profile Duration cannot be negative."
+        }
     }
 
     $config = Get-Configuration -ConfigFilePath $ConfigFilePath
