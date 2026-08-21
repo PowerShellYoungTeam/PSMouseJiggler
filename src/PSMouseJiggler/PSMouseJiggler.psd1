@@ -141,7 +141,7 @@
                   Get-PSMJRecommendedMethods -Strategy AppKeepAlive
                 - Saved profiles no longer use a 'Mode' field (MouseJiggler/KeepAwake); profiles now
                   simply carry Interval/Duration/MovementPattern/Methods/Strategy/Incognito and are
-                  started with Start-PSMouseJiggler
+                  started with Start-PSMJProfile
 
                 Version 1.1.0 (October 2025)
                 - Added modern tabbed GUI interface with three main tabs:
