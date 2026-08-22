@@ -499,7 +499,7 @@ function Show-PSMouseJigglerGUI {
     $settingsGroupBox = New-Object System.Windows.Forms.GroupBox
     $settingsGroupBox.Text = "Basic Settings"
     $settingsGroupBox.Location = New-Object System.Drawing.Point(20, 100)
-    $settingsGroupBox.Size = New-Object System.Drawing.Size(500, 200)
+    $settingsGroupBox.Size = New-Object System.Drawing.Size(500, 230)
     $basicTab.Controls.Add($settingsGroupBox)
 
     # Movement Pattern
@@ -608,10 +608,45 @@ function Show-PSMouseJigglerGUI {
             }
         })
 
+    # Strategy (overrides Mouse Input Method with a recommended method combination when not Manual)
+    $strategyLabel = New-Object System.Windows.Forms.Label
+    $strategyLabel.Text = "Strategy:"
+    $strategyLabel.Location = New-Object System.Drawing.Point(15, 165)
+    $strategyLabel.Size = New-Object System.Drawing.Size(130, 20)
+    $settingsGroupBox.Controls.Add($strategyLabel)
+
+    $strategyComboBox = New-Object System.Windows.Forms.ComboBox
+    $strategyComboBox.Location = New-Object System.Drawing.Point(150, 163)
+    $strategyComboBox.Size = New-Object System.Drawing.Size(150, 20)
+    $strategyComboBox.DropDownStyle = "DropDownList"
+    $strategyComboBox.Items.AddRange(@("Manual", "Adaptive", "LowImpact", "Compatibility", "AppKeepAlive"))
+    $strategyComboBox.SelectedIndex = 0
+    $settingsGroupBox.Controls.Add($strategyComboBox)
+
+    $strategyDescLabel = New-Object System.Windows.Forms.Label
+    $strategyDescLabel.Text = "Manual: use Mouse Input Method below"
+    $strategyDescLabel.Location = New-Object System.Drawing.Point(310, 165)
+    $strategyDescLabel.Size = New-Object System.Drawing.Size(180, 20)
+    $strategyDescLabel.Font = New-Object System.Drawing.Font("Segoe UI", 7)
+    $strategyDescLabel.ForeColor = [System.Drawing.Color]::Gray
+    $settingsGroupBox.Controls.Add($strategyDescLabel)
+
+    $strategyComboBox.Add_SelectedIndexChanged({
+            switch ($strategyComboBox.SelectedItem.ToString()) {
+                'Manual' { $strategyDescLabel.Text = "Manual: use Mouse Input Method below" }
+                'Adaptive' { $strategyDescLabel.Text = "SystemAPI + Hardware mouse (Windows)" }
+                'LowImpact' { $strategyDescLabel.Text = "SystemAPI only, no mouse movement" }
+                'Compatibility' { $strategyDescLabel.Text = "Software mouse only, most compatible" }
+                'AppKeepAlive' { $strategyDescLabel.Text = "SystemAPI + Keyboard, keeps apps active" }
+            }
+            # A strategy other than Manual overrides Mouse Input Method, so grey it out
+            $mouseTypeComboBox.Enabled = ($strategyComboBox.SelectedItem.ToString() -eq 'Manual')
+        })
+
     # Incognito mode checkbox
     $incognitoCheckbox = New-Object System.Windows.Forms.CheckBox
     $incognitoCheckbox.Text = "Incognito Mode (minimize window & clear console)"
-    $incognitoCheckbox.Location = New-Object System.Drawing.Point(15, 165)
+    $incognitoCheckbox.Location = New-Object System.Drawing.Point(15, 195)
     $incognitoCheckbox.Size = New-Object System.Drawing.Size(350, 20)
     $settingsGroupBox.Controls.Add($incognitoCheckbox)
     #endregion
@@ -804,6 +839,9 @@ function Show-PSMouseJigglerGUI {
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
                 $tabControl.SelectedIndex = 0
+                $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+                $form.ShowInTaskbar = $false
+                $notifyIcon.Visible = $true
             }
             catch {
                 [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
@@ -834,6 +872,9 @@ function Show-PSMouseJigglerGUI {
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
                 $tabControl.SelectedIndex = 0
+                $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+                $form.ShowInTaskbar = $false
+                $notifyIcon.Visible = $true
             }
             catch {
                 [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
@@ -864,6 +905,9 @@ function Show-PSMouseJigglerGUI {
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
                 $tabControl.SelectedIndex = 0
+                $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+                $form.ShowInTaskbar = $false
+                $notifyIcon.Visible = $true
             }
             catch {
                 [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
@@ -894,6 +938,9 @@ function Show-PSMouseJigglerGUI {
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
                 $tabControl.SelectedIndex = 0
+                $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+                $form.ShowInTaskbar = $false
+                $notifyIcon.Visible = $true
             }
             catch {
                 [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
@@ -918,12 +965,47 @@ function Show-PSMouseJigglerGUI {
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
                 $tabControl.SelectedIndex = 0
+                $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+                $form.ShowInTaskbar = $false
+                $notifyIcon.Visible = $true
             }
             catch {
                 [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
             }
         })
     #endregion
+
+    # System tray icon lets the user restore or stop jiggling once the window is minimized/hidden by Incognito mode
+    $notifyIcon = New-Object System.Windows.Forms.NotifyIcon
+    $notifyIcon.Icon = [System.Drawing.SystemIcons]::Application
+    $notifyIcon.Text = "PSMouseJiggler"
+    $notifyIcon.Visible = $false
+
+    $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
+    $trayShowItem = $trayMenu.Items.Add("Show Window")
+    $trayStopItem = $trayMenu.Items.Add("Stop Jiggling")
+    $notifyIcon.ContextMenuStrip = $trayMenu
+
+    $restoreFormAction = {
+        $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
+        $form.ShowInTaskbar = $true
+        $form.Activate()
+    }
+
+    $stopJigglingAction = {
+        Stop-PSMouseJiggler
+        $statusLabel.Text = "Status: Stopped"
+        $statusLabel.ForeColor = [System.Drawing.Color]::DarkRed
+        $statusDetailsLabel.Text = "Ready to start mouse jiggling"
+        $startButton.Enabled = $true
+        $stopButton.Enabled = $false
+        $notifyIcon.Visible = $false
+        & $restoreFormAction
+    }
+
+    $trayShowItem.Add_Click($restoreFormAction)
+    $trayStopItem.Add_Click($stopJigglingAction)
+    $notifyIcon.Add_DoubleClick($restoreFormAction)
 
     #region Control Buttons
     # Start button
@@ -943,9 +1025,15 @@ function Show-PSMouseJigglerGUI {
                     $duration = [int]$durationTextBox.Text
                     $pattern = $patternComboBox.SelectedItem.ToString()
                     $incognito = $incognitoCheckbox.Checked
+                    $strategy = $strategyComboBox.SelectedItem.ToString()
 
+                    if ($strategy -ne 'Manual') {
+                        # Strategy overrides Mouse Input Method with a recommended method combination
+                        Start-PSMouseJiggler -Strategy $strategy -Interval $interval -Duration $duration -Incognito:$incognito
+                        $statusDetailsLabel.Text = "Mode: Basic | Strategy: $strategy"
+                    }
                     # Determine mouse methods based on selection
-                    if ($mouseTypeComboBox.SelectedIndex -eq 1) {
+                    elseif ($mouseTypeComboBox.SelectedIndex -eq 1) {
                         # Hardware only
                         Start-PSMouseJiggler -Methods @('MouseHardware') -Interval $interval -Duration $duration -Incognito:$incognito
                         $statusDetailsLabel.Text = "Mode: Basic | Pattern: $pattern | Method: Hardware Mouse"
@@ -994,6 +1082,7 @@ function Show-PSMouseJigglerGUI {
                 if ($incognito -or $advIncognitoCheckbox.Checked) {
                     $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
                     $form.ShowInTaskbar = $false
+                    $notifyIcon.Visible = $true
                 }
             }
             catch {
@@ -1012,21 +1101,7 @@ function Show-PSMouseJigglerGUI {
     $stopButton.ForeColor = [System.Drawing.Color]::White
     $stopButton.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
     $stopButton.FlatStyle = "Flat"
-    $stopButton.Add_Click({
-            Stop-PSMouseJiggler
-            $statusLabel.Text = "Status: Stopped"
-            $statusLabel.ForeColor = [System.Drawing.Color]::DarkRed
-            $statusDetailsLabel.Text = "Ready to start mouse jiggling"
-            $startButton.Enabled = $true
-            $stopButton.Enabled = $false
-
-            # Restore form if it was minimized
-            if ($form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
-                $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
-                $form.ShowInTaskbar = $true
-                $form.Activate()
-            }
-        })
+    $stopButton.Add_Click($stopJigglingAction)
     $form.Controls.Add($stopButton)
 
     # Help button
@@ -1050,6 +1125,11 @@ BASIC MODE:
   * Software: Standard method (most compatible)
   * Hardware: Low-level input (better for strict policies)
   * Both: Maximum reliability
+- Or pick a Strategy to override Mouse Input Method with a recommended combination:
+  * Adaptive: SystemAPI + Hardware mouse (Windows)
+  * LowImpact: SystemAPI only, no mouse movement
+  * Compatibility: Software mouse only, most compatible
+  * AppKeepAlive: SystemAPI + Keyboard, keeps apps active without moving the mouse
 
 ADVANCED MODE:
 - Select multiple methods for maximum effectiveness
@@ -1064,9 +1144,10 @@ QUICK LAUNCH:
 - All profiles use incognito mode
 
 INCOGNITO MODE:
-- Minimizes window when started
+- Minimizes window and hides it from the taskbar
 - Clears console output
 - Runs discreetly in background
+- Use the system tray icon (right-click for Show/Stop, or double-click to restore) to regain control
 "@
             [System.Windows.Forms.MessageBox]::Show($helpMessage, "PSMouseJiggler Help", "OK", "Information")
         })
@@ -1083,12 +1164,11 @@ INCOGNITO MODE:
                 $statusDetailsLabel.Text = "Ready to start mouse jiggling"
                 $startButton.Enabled = $true
                 $stopButton.Enabled = $false
+                $notifyIcon.Visible = $false
 
                 # Restore form if it was minimized
                 if ($form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
-                    $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
-                    $form.ShowInTaskbar = $true
-                    $form.Activate()
+                    & $restoreFormAction
                 }
             }
         })
@@ -1113,7 +1193,7 @@ INCOGNITO MODE:
             $form.Activate()
         })
 
-    $form.Add_FormClosed({ $timer.Stop() })
+    $form.Add_FormClosed({ $timer.Stop(); $notifyIcon.Visible = $false; $notifyIcon.Dispose() })
     [void]$form.ShowDialog()
 }
 
