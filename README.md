@@ -230,6 +230,6 @@ Thanks to the PowerShell community for their support and contributions to the PS
 
 ---
 
-**Version**: 1.1.0
+**Version**: 2.0.0
 **Author**: Steven Wight (PowerShell Young Team)
-**Last Updated**: October 2025
+**Last Updated**: August 2026
