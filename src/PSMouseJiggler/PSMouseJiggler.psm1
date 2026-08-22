@@ -11,20 +11,48 @@ Add-Type -AssemblyName System.Drawing
 $script:JigglingJob = $null
 $script:JigglingActive = $false
 
+function Sync-PSMJState {
+    if (-not $script:JigglingActive) {
+        return
+    }
+
+    if ($null -eq $script:JigglingJob) {
+        $script:JigglingActive = $false
+        return
+    }
+
+    $jobState = [string]$script:JigglingJob.State
+    if ($jobState -in @('Completed', 'Failed', 'Stopped')) {
+        if ($script:JigglingJob -is [System.Management.Automation.Job]) {
+            Remove-Job -Job $script:JigglingJob -Force -ErrorAction SilentlyContinue
+        }
+        $script:JigglingJob = $null
+        $script:JigglingActive = $false
+    }
+}
+
 #region Core Mouse Jiggling Functions
 
 <#
 .SYNOPSIS
-    Starts the PSMouseJiggler to simulate mouse movements.
+    Starts the PSMouseJiggler to simulate mouse movements and/or keep the system awake.
 
 .DESCRIPTION
-    Starts mouse jiggling with specified interval and movement pattern to prevent the system from going idle.
+    Starts mouse jiggling with a specified interval and movement pattern, or combines
+    multiple keep-awake methods (software/hardware mouse, keyboard, system API) to
+    prevent the system from going idle.
 
 .PARAMETER Interval
-    Time in milliseconds between mouse movements. Default is 1000ms.
+    Time in milliseconds between actions. Default is 1000ms.
 
 .PARAMETER MovementPattern
-    The pattern for mouse movement. Valid values: 'Random', 'Horizontal', 'Vertical', 'Circular'. Default is 'Random'.
+    The pattern for mouse movement when using the default 'MouseSoftware' method. Valid values: 'Random', 'Horizontal', 'Vertical', 'Circular'. Default is 'Random'.
+
+.PARAMETER Methods
+    Array of keep-awake methods to use: 'MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI', or 'All'. Default is 'MouseSoftware'.
+
+.PARAMETER Strategy
+    An optional recommended method combination that overrides -Methods: 'Manual' (default, uses -Methods as-is), 'Adaptive', 'LowImpact', 'Compatibility', 'AppKeepAlive'.
 
 .PARAMETER Duration
     Duration in seconds to run the jiggler. If not specified, runs indefinitely until stopped.
@@ -39,11 +67,20 @@ When enabled, clears the console after starting to maintain privacy/discretion.
 .EXAMPLE
     Start-PSMouseJiggler -Interval 2000 -MovementPattern 'Circular' -Duration 300
     Starts mouse jiggling every 2 seconds using circular pattern for 5 minutes.
+
+.EXAMPLE
+    Start-PSMouseJiggler -Methods @('MouseHardware', 'SystemAPI') -Interval 30000
+    Combines hardware mouse input and the system power API for strict security policies.
+
+.EXAMPLE
+    Start-PSMouseJiggler -Strategy AppKeepAlive
+    Uses the SystemAPI + Keyboard combo to keep some Windows apps active without moving the mouse.
 #>
 function Start-PSMouseJiggler {
     [CmdletBinding()]
     param (
         [Parameter()]
+        [ValidateRange(1, 2147483647)]
         [int]$Interval = 1000,
 
         [Parameter()]
@@ -51,66 +88,230 @@ function Start-PSMouseJiggler {
         [string]$MovementPattern = 'Random',
 
         [Parameter()]
+        [ValidateSet('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI', 'All')]
+        [string[]]$Methods = @('MouseSoftware'),
+
+        [Parameter()]
+        [ValidateSet('Manual', 'Adaptive', 'LowImpact', 'Compatibility', 'AppKeepAlive')]
+        [string]$Strategy = 'Manual',
+
+        [Parameter()]
+        [ValidateRange(0, 2147483647)]
         [int]$Duration = 0,
 
         [Parameter()]
         [switch]$Incognito
     )
 
+    Sync-PSMJState
     if ($script:JigglingActive) {
-        Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
+        if ($Incognito) {
+            Clear-Host
+        }
+        else {
+            Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
+        }
         return
     }
 
-    Write-Host "Starting PSMouseJiggler with $MovementPattern pattern, interval: $Interval ms" -ForegroundColor Green
+    if ($Strategy -ne 'Manual') {
+        $Methods = Get-PSMJRecommendedMethods -Strategy $Strategy
+    }
+    elseif ($Methods -contains 'All') {
+        $Methods = @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI')
+    }
+
+    # Preserve the original single-mouse, pattern-based behavior when only the default method is requested
+    $useSinglePatternJob = ($Methods.Count -eq 1 -and $Methods[0] -eq 'MouseSoftware')
+
+    Write-Host "Starting PSMouseJiggler with methods: $($Methods -join ', '), interval: $Interval ms" -ForegroundColor Green
 
     $script:JigglingActive = $true
     $startTime = Get-Date
 
-    $script:JigglingJob = Start-Job -ScriptBlock {
-        param($Interval, $MovementPattern, $Duration, $StartTime)
+    if ($Methods -contains 'SystemAPI') {
+        Prevent-SystemIdle
+    }
 
-        Add-Type -AssemblyName System.Windows.Forms
-        Add-Type -AssemblyName System.Drawing
+    if ($useSinglePatternJob) {
+        $script:JigglingJob = Start-Job -ScriptBlock {
+            param($Interval, $MovementPattern, $Duration, $StartTime)
 
-        $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
+            # Use raw Win32 cursor calls; System.Windows.Forms.Cursor is unreliable without a UI message pump in a background job
+            Add-Type -TypeDefinition @"
+            using System;
+            using System.Runtime.InteropServices;
 
-        while ((Get-Date) -lt $endTime) {
-            $currentPos = [System.Windows.Forms.Cursor]::Position
+            public static class CursorNative {
+                [StructLayout(LayoutKind.Sequential)]
+                public struct POINT {
+                    public int X;
+                    public int Y;
+                }
 
-            # Determine movement pattern
-            switch ($MovementPattern) {
-                'Random' {
-                    $xOffset = Get-Random -Minimum -10 -Maximum 11
-                    $yOffset = Get-Random -Minimum -10 -Maximum 11
+                [DllImport("user32.dll")]
+                public static extern bool GetCursorPos(out POINT lpPoint);
+
+                [DllImport("user32.dll")]
+                public static extern bool SetCursorPos(int X, int Y);
+            }
+"@
+
+            $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
+
+            while ((Get-Date) -lt $endTime) {
+                $currentPos = New-Object CursorNative+POINT
+                [CursorNative]::GetCursorPos([ref]$currentPos) | Out-Null
+
+                # Determine movement pattern
+                switch ($MovementPattern) {
+                    'Random' {
+                        $xOffset = Get-Random -Minimum -10 -Maximum 11
+                        $yOffset = Get-Random -Minimum -10 -Maximum 11
+                    }
+                    'Horizontal' {
+                        $xOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
+                        $yOffset = 0
+                    }
+                    'Vertical' {
+                        $xOffset = 0
+                        $yOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
+                    }
+                    'Circular' {
+                        $angle = (Get-Date).Millisecond / 1000 * 2 * [Math]::PI
+                        $xOffset = [Math]::Round([Math]::Sin($angle) * 10)
+                        $yOffset = [Math]::Round([Math]::Cos($angle) * 10)
+                    }
+                    default {
+                        $xOffset = Get-Random -Minimum -5 -Maximum 6
+                        $yOffset = Get-Random -Minimum -5 -Maximum 6
+                    }
                 }
-                'Horizontal' {
-                    $xOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
-                    $yOffset = 0
-                }
-                'Vertical' {
-                    $xOffset = 0
-                    $yOffset = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { -5 } else { 5 }
-                }
-                'Circular' {
-                    $angle = (Get-Date).Millisecond / 1000 * 2 * [Math]::PI
-                    $xOffset = [Math]::Round([Math]::Sin($angle) * 10)
-                    $yOffset = [Math]::Round([Math]::Cos($angle) * 10)
-                }
-                default {
-                    $xOffset = Get-Random -Minimum -5 -Maximum 6
-                    $yOffset = Get-Random -Minimum -5 -Maximum 6
-                }
+
+                # Move the mouse
+                [CursorNative]::SetCursorPos($currentPos.X + $xOffset, $currentPos.Y + $yOffset) | Out-Null
+
+                # Wait for the specified interval
+                Start-Sleep -Milliseconds $Interval
+            }
+        } -ArgumentList $Interval, $MovementPattern, $Duration, $startTime
+    }
+    else {
+        $script:JigglingJob = Start-Job -ScriptBlock {
+            param($Interval, $Methods, $Duration, $StartTime)
+
+            # Import required assemblies
+            Add-Type -AssemblyName System.Windows.Forms
+            Add-Type -AssemblyName System.Drawing
+
+            # Define required P/Invoke structures and methods
+            Add-Type -TypeDefinition @"
+            using System;
+            using System.Runtime.InteropServices;
+
+            public static class DisplayState {
+                [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+                public static extern uint SetThreadExecutionState(uint esFlags);
+
+                public const uint ES_CONTINUOUS = 0x80000000;
+                public const uint ES_SYSTEM_REQUIRED = 0x00000001;
+                public const uint ES_DISPLAY_REQUIRED = 0x00000002;
             }
 
-            # Move the mouse
-            $newPos = New-Object System.Drawing.Point($currentPos.X + $xOffset, $currentPos.Y + $yOffset)
-            [System.Windows.Forms.Cursor]::Position = $newPos
+            public static class CursorNative {
+                [StructLayout(LayoutKind.Sequential)]
+                public struct POINT {
+                    public int X;
+                    public int Y;
+                }
 
-            # Wait for the specified interval
-            Start-Sleep -Milliseconds $Interval
-        }
-    } -ArgumentList $Interval, $MovementPattern, $Duration, $startTime
+                [DllImport("user32.dll")]
+                public static extern bool GetCursorPos(out POINT lpPoint);
+
+                [DllImport("user32.dll")]
+                public static extern bool SetCursorPos(int X, int Y);
+            }
+
+            public static class MouseSimulator {
+                [StructLayout(LayoutKind.Sequential)]
+                public struct MOUSEINPUT {
+                    public int dx;
+                    public int dy;
+                    public uint mouseData;
+                    public uint dwFlags;
+                    public uint time;
+                    public IntPtr dwExtraInfo;
+                }
+
+                [StructLayout(LayoutKind.Sequential)]
+                public struct INPUT {
+                    public uint type;
+                    public MOUSEINPUT mi;
+                }
+
+                [DllImport("user32.dll", SetLastError = true)]
+                public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+                public const int INPUT_MOUSE = 0;
+                public const int MOUSEEVENTF_MOVE = 0x0001;
+            }
+"@
+
+            $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
+
+            while ((Get-Date) -lt $endTime) {
+                # Randomly select a method from the provided methods
+                $method = $Methods | Get-Random
+
+                switch ($method) {
+                    'MouseSoftware' {
+                        # Move mouse using software method; raw Win32 calls avoid Windows.Forms.Cursor's UI-thread requirement
+                        $currentPos = New-Object CursorNative+POINT
+                        [CursorNative]::GetCursorPos([ref]$currentPos) | Out-Null
+                        $xOffset = Get-Random -Minimum -10 -Maximum 11
+                        $yOffset = Get-Random -Minimum -10 -Maximum 11
+                        [CursorNative]::SetCursorPos($currentPos.X + $xOffset, $currentPos.Y + $yOffset) | Out-Null
+
+                        # Move back to original position after a short delay to minimize disruption
+                        Start-Sleep -Milliseconds 100
+                        [CursorNative]::SetCursorPos($currentPos.X, $currentPos.Y) | Out-Null
+                    }
+                    'MouseHardware' {
+                        # Use hardware-level mouse movement
+                        $mouseInputStructure = New-Object MouseSimulator+INPUT
+                        $mouseInputStructure.type = [MouseSimulator]::INPUT_MOUSE
+                        $mouseInputStructure.mi.dx = Get-Random -Minimum -5 -Maximum 6
+                        $mouseInputStructure.mi.dy = Get-Random -Minimum -5 -Maximum 6
+                        $mouseInputStructure.mi.dwFlags = [MouseSimulator]::MOUSEEVENTF_MOVE
+                        $mouseInputStructure.mi.time = 0
+                        $mouseInputStructure.mi.dwExtraInfo = [IntPtr]::Zero
+
+                        $inputArray = @($mouseInputStructure)
+                        [MouseSimulator]::SendInput(1, $inputArray, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT])) | Out-Null
+                    }
+                    'Keyboard' {
+                        # Press a non-disruptive key (F15 is rarely used)
+                        [System.Windows.Forms.SendKeys]::SendWait("{F15}")
+                    }
+                    'SystemAPI' {
+                        # Directly tell Windows to stay awake
+                        [DisplayState]::SetThreadExecutionState(
+                            [DisplayState]::ES_CONTINUOUS -bor
+                            [DisplayState]::ES_SYSTEM_REQUIRED -bor
+                            [DisplayState]::ES_DISPLAY_REQUIRED)
+                    }
+                }
+
+                # Wait for the specified interval
+                Start-Sleep -Milliseconds $Interval
+            }
+
+            # Reset execution state if we used the API
+            if ($Methods -contains 'SystemAPI') {
+                [DisplayState]::SetThreadExecutionState([DisplayState]::ES_CONTINUOUS)
+            }
+        } -ArgumentList $Interval, $Methods, $Duration, $startTime
+    }
 
     if ($Duration -gt 0) {
         Write-Host "PSMouseJiggler will run for $Duration seconds" -ForegroundColor Yellow
@@ -140,6 +341,7 @@ function Stop-PSMouseJiggler {
     [CmdletBinding()]
     param()
 
+    Sync-PSMJState
     if (-not $script:JigglingActive) {
         Write-Warning "PSMouseJiggler is not currently running."
         return
@@ -249,9 +451,9 @@ function Show-PSMouseJigglerGUI {
     [CmdletBinding()]
     param()
 
-    # Create the main form
+    # Create the main form (rememeber to update version number in the title if you change it!)
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = "PSMouseJiggler v1.1.0"
+    $form.Text = "PSMouseJiggler v2.2.0"
     $form.Size = New-Object System.Drawing.Size(600, 550)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedDialog"
@@ -297,7 +499,7 @@ function Show-PSMouseJigglerGUI {
     $settingsGroupBox = New-Object System.Windows.Forms.GroupBox
     $settingsGroupBox.Text = "Basic Settings"
     $settingsGroupBox.Location = New-Object System.Drawing.Point(20, 100)
-    $settingsGroupBox.Size = New-Object System.Drawing.Size(500, 200)
+    $settingsGroupBox.Size = New-Object System.Drawing.Size(500, 230)
     $basicTab.Controls.Add($settingsGroupBox)
 
     # Movement Pattern
@@ -406,10 +608,45 @@ function Show-PSMouseJigglerGUI {
             }
         })
 
+    # Strategy (overrides Mouse Input Method with a recommended method combination when not Manual)
+    $strategyLabel = New-Object System.Windows.Forms.Label
+    $strategyLabel.Text = "Strategy:"
+    $strategyLabel.Location = New-Object System.Drawing.Point(15, 165)
+    $strategyLabel.Size = New-Object System.Drawing.Size(130, 20)
+    $settingsGroupBox.Controls.Add($strategyLabel)
+
+    $strategyComboBox = New-Object System.Windows.Forms.ComboBox
+    $strategyComboBox.Location = New-Object System.Drawing.Point(150, 163)
+    $strategyComboBox.Size = New-Object System.Drawing.Size(150, 20)
+    $strategyComboBox.DropDownStyle = "DropDownList"
+    $strategyComboBox.Items.AddRange(@("Manual", "Adaptive", "LowImpact", "Compatibility", "AppKeepAlive"))
+    $strategyComboBox.SelectedIndex = 0
+    $settingsGroupBox.Controls.Add($strategyComboBox)
+
+    $strategyDescLabel = New-Object System.Windows.Forms.Label
+    $strategyDescLabel.Text = "Manual: use Mouse Input Method below"
+    $strategyDescLabel.Location = New-Object System.Drawing.Point(310, 165)
+    $strategyDescLabel.Size = New-Object System.Drawing.Size(180, 20)
+    $strategyDescLabel.Font = New-Object System.Drawing.Font("Segoe UI", 7)
+    $strategyDescLabel.ForeColor = [System.Drawing.Color]::Gray
+    $settingsGroupBox.Controls.Add($strategyDescLabel)
+
+    $strategyComboBox.Add_SelectedIndexChanged({
+            switch ($strategyComboBox.SelectedItem.ToString()) {
+                'Manual' { $strategyDescLabel.Text = "Manual: use Mouse Input Method below" }
+                'Adaptive' { $strategyDescLabel.Text = "SystemAPI + Hardware mouse (Windows)" }
+                'LowImpact' { $strategyDescLabel.Text = "SystemAPI only, no mouse movement" }
+                'Compatibility' { $strategyDescLabel.Text = "Software mouse only, most compatible" }
+                'AppKeepAlive' { $strategyDescLabel.Text = "SystemAPI + Keyboard, keeps apps active" }
+            }
+            # A strategy other than Manual overrides Mouse Input Method, so grey it out
+            $mouseTypeComboBox.Enabled = ($strategyComboBox.SelectedItem.ToString() -eq 'Manual')
+        })
+
     # Incognito mode checkbox
     $incognitoCheckbox = New-Object System.Windows.Forms.CheckBox
     $incognitoCheckbox.Text = "Incognito Mode (minimize window & clear console)"
-    $incognitoCheckbox.Location = New-Object System.Drawing.Point(15, 165)
+    $incognitoCheckbox.Location = New-Object System.Drawing.Point(15, 195)
     $incognitoCheckbox.Size = New-Object System.Drawing.Size(350, 20)
     $settingsGroupBox.Controls.Add($incognitoCheckbox)
     #endregion
@@ -602,6 +839,9 @@ function Show-PSMouseJigglerGUI {
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
                 $tabControl.SelectedIndex = 0
+                $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+                $form.ShowInTaskbar = $false
+                $notifyIcon.Visible = $true
             }
             catch {
                 [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
@@ -625,13 +865,16 @@ function Show-PSMouseJigglerGUI {
 
     $profile2Button.Add_Click({
             try {
-                Start-KeepAwake -Methods @('MouseHardware', 'SystemAPI') -Interval 30000 -Duration 0 -Incognito
+                Start-PSMouseJiggler -Methods @('MouseHardware', 'SystemAPI') -Interval 30000 -Duration 0 -Incognito
                 $statusLabel.Text = "Status: Running (Maximum Security)"
                 $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
                 $statusDetailsLabel.Text = "Profile: Maximum Security | Hardware + System API, 30s interval"
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
                 $tabControl.SelectedIndex = 0
+                $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+                $form.ShowInTaskbar = $false
+                $notifyIcon.Visible = $true
             }
             catch {
                 [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
@@ -655,13 +898,16 @@ function Show-PSMouseJigglerGUI {
 
     $profile3Button.Add_Click({
             try {
-                Start-KeepAwake -Methods @('Keyboard') -Interval 30000 -Duration 0 -Incognito
+                Start-PSMouseJiggler -Methods @('Keyboard') -Interval 30000 -Duration 0 -Incognito
                 $statusLabel.Text = "Status: Running (Keyboard Only)"
                 $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
                 $statusDetailsLabel.Text = "Profile: Keyboard Only | F15 key press, 30s interval"
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
                 $tabControl.SelectedIndex = 0
+                $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+                $form.ShowInTaskbar = $false
+                $notifyIcon.Visible = $true
             }
             catch {
                 [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
@@ -685,13 +931,16 @@ function Show-PSMouseJigglerGUI {
 
     $profile4Button.Add_Click({
             try {
-                Start-KeepAwake -Methods @('SystemAPI') -Interval 30000 -Duration 0 -Incognito
+                Start-PSMouseJiggler -Methods @('SystemAPI') -Interval 30000 -Duration 0 -Incognito
                 $statusLabel.Text = "Status: Running (System API Only)"
                 $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
                 $statusDetailsLabel.Text = "Profile: System API | Direct power management control"
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
                 $tabControl.SelectedIndex = 0
+                $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+                $form.ShowInTaskbar = $false
+                $notifyIcon.Visible = $true
             }
             catch {
                 [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
@@ -709,19 +958,54 @@ function Show-PSMouseJigglerGUI {
 
     $profile5Button.Add_Click({
             try {
-                Start-KeepAwake -Methods @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI') -Interval 30000 -Duration 0 -Incognito
+                Start-PSMouseJiggler -Methods @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI') -Interval 30000 -Duration 0 -Incognito
                 $statusLabel.Text = "Status: Running (All Methods)"
                 $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
                 $statusDetailsLabel.Text = "Profile: All Methods | Maximum reliability with all techniques"
                 $startButton.Enabled = $false
                 $stopButton.Enabled = $true
                 $tabControl.SelectedIndex = 0
+                $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+                $form.ShowInTaskbar = $false
+                $notifyIcon.Visible = $true
             }
             catch {
                 [System.Windows.Forms.MessageBox]::Show("Error: $($_.Exception.Message)", "Error", "OK", "Error")
             }
         })
     #endregion
+
+    # System tray icon lets the user restore or stop jiggling once the window is minimized/hidden by Incognito mode
+    $notifyIcon = New-Object System.Windows.Forms.NotifyIcon
+    $notifyIcon.Icon = [System.Drawing.SystemIcons]::Application
+    $notifyIcon.Text = "PSMouseJiggler"
+    $notifyIcon.Visible = $false
+
+    $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
+    $trayShowItem = $trayMenu.Items.Add("Show Window")
+    $trayStopItem = $trayMenu.Items.Add("Stop Jiggling")
+    $notifyIcon.ContextMenuStrip = $trayMenu
+
+    $restoreFormAction = {
+        $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
+        $form.ShowInTaskbar = $true
+        $form.Activate()
+    }
+
+    $stopJigglingAction = {
+        Stop-PSMouseJiggler
+        $statusLabel.Text = "Status: Stopped"
+        $statusLabel.ForeColor = [System.Drawing.Color]::DarkRed
+        $statusDetailsLabel.Text = "Ready to start mouse jiggling"
+        $startButton.Enabled = $true
+        $stopButton.Enabled = $false
+        $notifyIcon.Visible = $false
+        & $restoreFormAction
+    }
+
+    $trayShowItem.Add_Click($restoreFormAction)
+    $trayStopItem.Add_Click($stopJigglingAction)
+    $notifyIcon.Add_DoubleClick($restoreFormAction)
 
     #region Control Buttons
     # Start button
@@ -741,16 +1025,22 @@ function Show-PSMouseJigglerGUI {
                     $duration = [int]$durationTextBox.Text
                     $pattern = $patternComboBox.SelectedItem.ToString()
                     $incognito = $incognitoCheckbox.Checked
+                    $strategy = $strategyComboBox.SelectedItem.ToString()
 
+                    if ($strategy -ne 'Manual') {
+                        # Strategy overrides Mouse Input Method with a recommended method combination
+                        Start-PSMouseJiggler -Strategy $strategy -Interval $interval -Duration $duration -Incognito:$incognito
+                        $statusDetailsLabel.Text = "Mode: Basic | Strategy: $strategy"
+                    }
                     # Determine mouse methods based on selection
-                    if ($mouseTypeComboBox.SelectedIndex -eq 1) {
+                    elseif ($mouseTypeComboBox.SelectedIndex -eq 1) {
                         # Hardware only
-                        Start-KeepAwake -Methods @('MouseHardware') -Interval $interval -Duration $duration -Incognito:$incognito
+                        Start-PSMouseJiggler -Methods @('MouseHardware') -Interval $interval -Duration $duration -Incognito:$incognito
                         $statusDetailsLabel.Text = "Mode: Basic | Pattern: $pattern | Method: Hardware Mouse"
                     }
                     elseif ($mouseTypeComboBox.SelectedIndex -eq 2) {
                         # Both methods
-                        Start-KeepAwake -Methods @('MouseSoftware', 'MouseHardware') -Interval $interval -Duration $duration -Incognito:$incognito
+                        Start-PSMouseJiggler -Methods @('MouseSoftware', 'MouseHardware') -Interval $interval -Duration $duration -Incognito:$incognito
                         $statusDetailsLabel.Text = "Mode: Basic | Pattern: $pattern | Method: Both (Software + Hardware)"
                     }
                     else {
@@ -779,7 +1069,7 @@ function Show-PSMouseJigglerGUI {
                     $duration = [int]$advDurationTextBox.Text
                     $incognito = $advIncognitoCheckbox.Checked
 
-                    Start-KeepAwake -Methods $methods -Interval $interval -Duration $duration -Incognito:$incognito
+                    Start-PSMouseJiggler -Methods $methods -Interval $interval -Duration $duration -Incognito:$incognito
                     $statusLabel.Text = "Status: Running (Advanced)"
                     $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
                     $statusDetailsLabel.Text = "Mode: Advanced | Methods: $($methods -join ', ')"
@@ -792,6 +1082,7 @@ function Show-PSMouseJigglerGUI {
                 if ($incognito -or $advIncognitoCheckbox.Checked) {
                     $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
                     $form.ShowInTaskbar = $false
+                    $notifyIcon.Visible = $true
                 }
             }
             catch {
@@ -810,21 +1101,7 @@ function Show-PSMouseJigglerGUI {
     $stopButton.ForeColor = [System.Drawing.Color]::White
     $stopButton.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
     $stopButton.FlatStyle = "Flat"
-    $stopButton.Add_Click({
-            Stop-PSMouseJiggler
-            $statusLabel.Text = "Status: Stopped"
-            $statusLabel.ForeColor = [System.Drawing.Color]::DarkRed
-            $statusDetailsLabel.Text = "Ready to start mouse jiggling"
-            $startButton.Enabled = $true
-            $stopButton.Enabled = $false
-
-            # Restore form if it was minimized
-            if ($form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
-                $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
-                $form.ShowInTaskbar = $true
-                $form.Activate()
-            }
-        })
+    $stopButton.Add_Click($stopJigglingAction)
     $form.Controls.Add($stopButton)
 
     # Help button
@@ -848,6 +1125,11 @@ BASIC MODE:
   * Software: Standard method (most compatible)
   * Hardware: Low-level input (better for strict policies)
   * Both: Maximum reliability
+- Or pick a Strategy to override Mouse Input Method with a recommended combination:
+  * Adaptive: SystemAPI + Hardware mouse (Windows)
+  * LowImpact: SystemAPI only, no mouse movement
+  * Compatibility: Software mouse only, most compatible
+  * AppKeepAlive: SystemAPI + Keyboard, keeps apps active without moving the mouse
 
 ADVANCED MODE:
 - Select multiple methods for maximum effectiveness
@@ -862,9 +1144,10 @@ QUICK LAUNCH:
 - All profiles use incognito mode
 
 INCOGNITO MODE:
-- Minimizes window when started
+- Minimizes window and hides it from the taskbar
 - Clears console output
 - Runs discreetly in background
+- Use the system tray icon (right-click for Show/Stop, or double-click to restore) to regain control
 "@
             [System.Windows.Forms.MessageBox]::Show($helpMessage, "PSMouseJiggler Help", "OK", "Information")
         })
@@ -881,12 +1164,11 @@ INCOGNITO MODE:
                 $statusDetailsLabel.Text = "Ready to start mouse jiggling"
                 $startButton.Enabled = $true
                 $stopButton.Enabled = $false
+                $notifyIcon.Visible = $false
 
                 # Restore form if it was minimized
                 if ($form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
-                    $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
-                    $form.ShowInTaskbar = $true
-                    $form.Activate()
+                    & $restoreFormAction
                 }
             }
         })
@@ -911,13 +1193,46 @@ INCOGNITO MODE:
             $form.Activate()
         })
 
-    $form.Add_FormClosed({ $timer.Stop() })
+    $form.Add_FormClosed({ $timer.Stop(); $notifyIcon.Visible = $false; $notifyIcon.Dispose() })
     [void]$form.ShowDialog()
 }
 
 #endregion
 
 #region Configuration Functions
+
+function Assert-Configuration {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [PSCustomObject]$Configuration
+    )
+
+    $movementPattern = $Configuration.PSObject.Properties['MovementPattern']
+    if ($null -ne $movementPattern -and $movementPattern.Value -notin @('Random', 'Horizontal', 'Vertical', 'Circular')) {
+        throw "MovementPattern must be Random, Horizontal, Vertical, or Circular."
+    }
+
+    foreach ($propertyName in @('MovementSpeed', 'JiggleInterval')) {
+        $property = $Configuration.PSObject.Properties[$propertyName]
+        if ($null -ne $property -and ($property.Value -isnot [int] -and $property.Value -isnot [long] -and $property.Value -isnot [double])) {
+            throw "$propertyName must be a number."
+        }
+        if ($null -ne $property -and $property.Value -lt 1) {
+            throw "$propertyName must be greater than zero."
+        }
+    }
+
+    $duration = $Configuration.PSObject.Properties['Duration']
+    if ($null -ne $duration -and ($duration.Value -isnot [int] -and $duration.Value -isnot [long] -and $duration.Value -isnot [double])) {
+        throw "Duration must be a number."
+    }
+    if ($null -ne $duration -and $duration.Value -lt 0) {
+        throw "Duration cannot be negative."
+    }
+
+    return $Configuration
+}
 
 <#
 .SYNOPSIS
@@ -948,6 +1263,7 @@ function Get-Configuration {
     if (Test-Path $ConfigFilePath) {
         try {
             $config = Get-Content -Path $ConfigFilePath -Raw | ConvertFrom-Json
+            Assert-Configuration -Configuration $config | Out-Null
             Write-Verbose "Configuration loaded from $ConfigFilePath"
             return $config
         }
@@ -995,6 +1311,7 @@ function Save-Configuration {
     }
 
     try {
+        Assert-Configuration -Configuration $Configuration | Out-Null
         $configDir = Split-Path -Parent $ConfigFilePath
         if (-not (Test-Path $configDir)) {
             New-Item -ItemType Directory -Path $configDir -Force | Out-Null
@@ -1045,6 +1362,205 @@ function Update-Configuration {
     Save-Configuration -Configuration $config -ConfigFilePath $ConfigFilePath
 }
 
+function Get-PSMJProfile {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [string]$Name,
+
+        [Parameter()]
+        [string]$ConfigFilePath
+    )
+
+    $config = Get-Configuration -ConfigFilePath $ConfigFilePath
+    $profilesProperty = $config.PSObject.Properties['Profiles']
+    if ($null -eq $profilesProperty -or $null -eq $profilesProperty.Value) {
+        return @()
+    }
+
+    if ($Name) {
+        $profileProperty = $profilesProperty.Value.PSObject.Properties[$Name]
+        if ($null -eq $profileProperty) {
+            Write-Error "Profile '$Name' was not found."
+            return
+        }
+
+        $profile = [PSCustomObject]@{ Name = $Name }
+        foreach ($property in $profileProperty.Value.PSObject.Properties) {
+            $profile | Add-Member -MemberType NoteProperty -Name $property.Name -Value $property.Value
+        }
+        return $profile
+    }
+
+    foreach ($profileProperty in $profilesProperty.Value.PSObject.Properties) {
+        $profile = [PSCustomObject]@{ Name = $profileProperty.Name }
+        foreach ($property in $profileProperty.Value.PSObject.Properties) {
+            $profile | Add-Member -MemberType NoteProperty -Name $property.Name -Value $property.Value
+        }
+        $profile
+    }
+}
+
+function Save-PSMJProfile {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Name,
+
+        [Parameter(Mandatory)]
+        [PSCustomObject]$Profile,
+
+        [Parameter()]
+        [string]$ConfigFilePath
+    )
+
+    $methods = $Profile.PSObject.Properties['Methods']
+    if ($null -ne $methods) {
+        foreach ($method in @($methods.Value)) {
+            if ($method -notin @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI', 'All')) {
+                throw "Profile Methods entries must be MouseSoftware, MouseHardware, Keyboard, SystemAPI, or All."
+            }
+        }
+    }
+
+    $interval = $Profile.PSObject.Properties['Interval']
+    if ($null -ne $interval) {
+        if ($interval.Value -isnot [int] -and $interval.Value -isnot [long] -and $interval.Value -isnot [double]) {
+            throw "Profile Interval must be a number."
+        }
+        if ([double]$interval.Value -lt 1) {
+            throw "Profile Interval must be greater than zero."
+        }
+    }
+
+    $duration = $Profile.PSObject.Properties['Duration']
+    if ($null -ne $duration) {
+        if ($duration.Value -isnot [int] -and $duration.Value -isnot [long] -and $duration.Value -isnot [double]) {
+            throw "Profile Duration must be a number."
+        }
+        if ([double]$duration.Value -lt 0) {
+            throw "Profile Duration cannot be negative."
+        }
+    }
+
+    $config = Get-Configuration -ConfigFilePath $ConfigFilePath
+    $profilesProperty = $config.PSObject.Properties['Profiles']
+    if ($null -eq $profilesProperty -or $null -eq $profilesProperty.Value) {
+        $config | Add-Member -MemberType NoteProperty -Name Profiles -Value ([PSCustomObject]@{}) -Force
+    }
+
+    $profileCopy = [PSCustomObject]@{}
+    foreach ($property in $Profile.PSObject.Properties) {
+        if ($property.Name -ne 'Name') {
+            $profileCopy | Add-Member -MemberType NoteProperty -Name $property.Name -Value $property.Value
+        }
+    }
+
+    $config.Profiles | Add-Member -MemberType NoteProperty -Name $Name -Value $profileCopy -Force
+    Save-Configuration -Configuration $config -ConfigFilePath $ConfigFilePath
+    Get-PSMJProfile -Name $Name -ConfigFilePath $ConfigFilePath
+}
+
+function Remove-PSMJProfile {
+    [CmdletBinding(SupportsShouldProcess)]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Name,
+
+        [Parameter()]
+        [string]$ConfigFilePath
+    )
+
+    $config = Get-Configuration -ConfigFilePath $ConfigFilePath
+    $profilesProperty = $config.PSObject.Properties['Profiles']
+    $profileProperty = if ($null -ne $profilesProperty) { $profilesProperty.Value.PSObject.Properties[$Name] }
+    if ($null -eq $profileProperty) {
+        Write-Error "Profile '$Name' was not found."
+        return
+    }
+
+    if ($PSCmdlet.ShouldProcess($Name, 'Remove saved profile')) {
+        $profilesProperty.Value.PSObject.Properties.Remove($Name)
+        Save-Configuration -Configuration $config -ConfigFilePath $ConfigFilePath
+    }
+}
+
+function Start-PSMJProfile {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Name,
+
+        [Parameter()]
+        [string]$ConfigFilePath
+    )
+
+    $profile = Get-PSMJProfile -Name $Name -ConfigFilePath $ConfigFilePath -ErrorAction Stop
+    $incognito = [bool]$profile.Incognito
+
+    $parameters = @{
+        Interval        = if ($null -ne $profile.Interval) { [int]$profile.Interval } else { 1000 }
+        MovementPattern = if ($profile.MovementPattern) { [string]$profile.MovementPattern } else { 'Random' }
+        Duration        = if ($null -ne $profile.Duration) { [int]$profile.Duration } else { 0 }
+        Incognito       = $incognito
+    }
+    if ($null -ne $profile.Methods) {
+        $parameters.Methods = @($profile.Methods)
+    }
+    if ($profile.Strategy) {
+        $parameters.Strategy = [string]$profile.Strategy
+    }
+
+    Start-PSMouseJiggler @parameters
+}
+
+function Get-PSMJDiagnostics {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [string]$ConfigFilePath
+    )
+
+    Sync-PSMJState
+    $configurationValid = $true
+    $configuration = $null
+    try {
+        $configuration = Get-Configuration -ConfigFilePath $ConfigFilePath -WarningAction Stop
+    }
+    catch {
+        $configurationValid = $false
+    }
+
+    $jobState = 'NotStarted'
+    if ($null -ne $script:JigglingJob) {
+        $jobState = [string]$script:JigglingJob.State
+    }
+
+    $profileCount = 0
+    if ($null -ne $configuration) {
+        $profilesProperty = $configuration.PSObject.Properties['Profiles']
+        if ($null -ne $profilesProperty -and $null -ne $profilesProperty.Value) {
+            $profileCount = @($profilesProperty.Value.PSObject.Properties).Count
+        }
+    }
+
+    $module = Get-Module -Name PSMouseJiggler | Select-Object -First 1
+    [PSCustomObject]@{
+        ModuleName         = 'PSMouseJiggler'
+        ModuleVersion      = if ($null -ne $module) { [string]$module.Version } else { $null }
+        PowerShellVersion  = [string]$PSVersionTable.PSVersion
+        OperatingSystem    = [string]$PSVersionTable.OS
+        IsRunning          = [bool]$script:JigglingActive
+        JobState           = $jobState
+        ConfigurationValid = $configurationValid
+        ProfileCount       = $profileCount
+        ConfigFilePath     = if ($ConfigFilePath) { $ConfigFilePath } else { $null }
+    }
+}
+
 <#
 .SYNOPSIS
     Resets configuration to default values.
@@ -1080,6 +1596,7 @@ function Get-DefaultConfiguration {
         ScheduledTimes       = @()
         AutoJiggle           = $false
         Duration             = 0
+        Profiles             = [PSCustomObject]@{}
         GuiSettings          = @{
             WindowPosition   = @{
                 X = 0
@@ -1183,6 +1700,7 @@ function Start-MovementPattern {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
+        [ValidateRange(0, 2147483647)]
         [int]$DurationInSeconds
     )
 
@@ -1250,6 +1768,72 @@ function Get-PSMJScheduledTasks {
     }
 }
 
+function Get-PSMJScheduledTaskStatus {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [string]$TaskName = 'PSMouseJiggler*'
+    )
+
+    try {
+        $tasks = @(Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop)
+        foreach ($task in $tasks) {
+            $taskInfo = Get-ScheduledTaskInfo -TaskName $task.TaskName -TaskPath $task.TaskPath -ErrorAction Stop
+            [PSCustomObject]@{
+                TaskName       = $task.TaskName
+                TaskPath       = $task.TaskPath
+                State          = [string]$task.State
+                Enabled        = [bool]$task.Settings.Enabled
+                NextRunTime    = $taskInfo.NextRunTime
+                LastRunTime    = $taskInfo.LastRunTime
+                LastTaskResult = $taskInfo.LastTaskResult
+            }
+        }
+    }
+    catch {
+        Write-Warning "Error getting scheduled task status: $($_.Exception.Message)"
+        return @()
+    }
+}
+
+function New-PSMJScheduledProfileTask {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$TaskName,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$ProfileName,
+
+        [Parameter(Mandatory)]
+        [DateTime]$StartTime,
+
+        [Parameter()]
+        [ValidateRange(0, 2147483647)]
+        [int]$RepeatIntervalMinutes = 0,
+
+        [Parameter()]
+        [string]$ConfigFilePath
+    )
+
+    Get-PSMJProfile -Name $ProfileName -ConfigFilePath $ConfigFilePath -ErrorAction Stop | Out-Null
+
+    $escapedProfileName = $ProfileName.Replace("'", "''")
+    $action = "Import-Module PSMouseJiggler -ErrorAction Stop; Start-PSMJProfile -Name '$escapedProfileName'"
+    if ($ConfigFilePath) {
+        $escapedConfigPath = $ConfigFilePath.Replace("'", "''")
+        $action += " -ConfigFilePath '$escapedConfigPath'"
+    }
+
+    New-PSMJScheduledTask `
+        -TaskName $TaskName `
+        -Action $action `
+        -StartTime $StartTime `
+        -RepeatIntervalMinutes $RepeatIntervalMinutes
+}
+
 <#
 .SYNOPSIS
     Creates a new scheduled task for PSMouseJiggler.
@@ -1286,6 +1870,7 @@ function New-PSMJScheduledTask {
         [DateTime]$StartTime,
 
         [Parameter()]
+        [ValidateRange(0, 2147483647)]
         [int]$RepeatIntervalMinutes = 0
     )
 
@@ -1559,179 +2144,31 @@ function Send-MouseInput {
     Write-Verbose "Sent hardware-level mouse movement: X=$XOffset, Y=$YOffset"
 }
 
-<#
-.SYNOPSIS
-    Keeps the system awake using multiple methods.
-
-.DESCRIPTION
-    Combines various techniques to prevent system sleep, including
-    mouse movements, keyboard input, and Windows API calls.
-
-.PARAMETER Methods
-    Array of methods to use. Default includes all available methods.
-
-.PARAMETER Interval
-    Time in milliseconds between actions. Default is 30000 (30 seconds).
-
-.PARAMETER Duration
-    Duration in seconds to run. Default is 0 (indefinite).
-
-.PARAMETER Incognito
-When enabled, clears the console after starting to maintain privacy/discretion.
-
-.EXAMPLE
-    Start-KeepAwake -Interval 60000 -Duration 3600
-    Keeps the system awake for 1 hour, performing actions every 60 seconds.
-#>
-function Start-KeepAwake {
+function Get-PSMJRecommendedMethods {
     [CmdletBinding()]
     param (
         [Parameter()]
-        [ValidateSet('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI', 'All')]
-        [string[]]$Methods = @('All'),
-
-        [Parameter()]
-        [int]$Interval = 30000,
-
-        [Parameter()]
-        [int]$Duration = 0,
-
-        [Parameter()]
-        [switch]$Incognito
+        [ValidateSet('Adaptive', 'LowImpact', 'Compatibility', 'AppKeepAlive')]
+        [string]$Strategy = 'Adaptive'
     )
 
-    if ($script:JigglingActive) {
-        Write-Warning "PSMouseJiggler is already running. Use Stop-PSMouseJiggler to stop it first."
-        return
+    if ($Strategy -eq 'LowImpact') {
+        return @('SystemAPI')
     }
 
-    Write-Host "Starting PSMouseJiggler KeepAwake with multiple methods, interval: $Interval ms" -ForegroundColor Green
-
-    $script:JigglingActive = $true
-    $startTime = Get-Date
-
-    # If 'All' is specified, use all methods
-    if ($Methods -contains 'All') {
-        $Methods = @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI')
+    if ($Strategy -eq 'Compatibility') {
+        return @('MouseSoftware')
     }
 
-    # Start the prevention immediately using the API
-    if ($Methods -contains 'SystemAPI') {
-        Prevent-SystemIdle
+    if ($Strategy -eq 'AppKeepAlive') {
+        return @('SystemAPI', 'Keyboard')
     }
 
-    $script:JigglingJob = Start-Job -ScriptBlock {
-        param($Interval, $Methods, $Duration, $StartTime)
-
-        # Import required assemblies
-        Add-Type -AssemblyName System.Windows.Forms
-        Add-Type -AssemblyName System.Drawing
-
-        # Define required P/Invoke structures and methods
-        Add-Type -TypeDefinition @"
-        using System;
-        using System.Runtime.InteropServices;
-
-        public static class DisplayState {
-            [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-            public static extern uint SetThreadExecutionState(uint esFlags);
-
-            public const uint ES_CONTINUOUS = 0x80000000;
-            public const uint ES_SYSTEM_REQUIRED = 0x00000001;
-            public const uint ES_DISPLAY_REQUIRED = 0x00000002;
-        }
-
-        public static class MouseSimulator {
-            [StructLayout(LayoutKind.Sequential)]
-            public struct MOUSEINPUT {
-                public int dx;
-                public int dy;
-                public uint mouseData;
-                public uint dwFlags;
-                public uint time;
-                public IntPtr dwExtraInfo;
-            }
-
-            [StructLayout(LayoutKind.Sequential)]
-            public struct INPUT {
-                public uint type;
-                public MOUSEINPUT mi;
-            }
-
-            [DllImport("user32.dll", SetLastError = true)]
-            public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-
-            public const int INPUT_MOUSE = 0;
-            public const int MOUSEEVENTF_MOVE = 0x0001;
-        }
-"@
-
-        $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
-
-        while ((Get-Date) -lt $endTime) {
-            # Randomly select a method from the provided methods
-            $method = $Methods | Get-Random
-
-            switch ($method) {
-                'MouseSoftware' {
-                    # Move mouse using software method
-                    $currentPos = [System.Windows.Forms.Cursor]::Position
-                    $xOffset = Get-Random -Minimum -10 -Maximum 11
-                    $yOffset = Get-Random -Minimum -10 -Maximum 11
-                    $newPos = [System.Drawing.Point]::new($currentPos.X + $xOffset, $currentPos.Y + $yOffset)
-                    [System.Windows.Forms.Cursor]::Position = $newPos
-
-                    # Move back to original position after a short delay to minimize disruption
-                    Start-Sleep -Milliseconds 100
-                    [System.Windows.Forms.Cursor]::Position = $currentPos
-                }
-                'MouseHardware' {
-                    # Use hardware-level mouse movement
-                    $mouseInputStructure = New-Object MouseSimulator+INPUT
-                    $mouseInputStructure.type = [MouseSimulator]::INPUT_MOUSE
-                    $mouseInputStructure.mi.dx = Get-Random -Minimum -5 -Maximum 6
-                    $mouseInputStructure.mi.dy = Get-Random -Minimum -5 -Maximum 6
-                    $mouseInputStructure.mi.dwFlags = [MouseSimulator]::MOUSEEVENTF_MOVE
-                    $mouseInputStructure.mi.time = 0
-                    $mouseInputStructure.mi.dwExtraInfo = [IntPtr]::Zero
-
-                    $inputArray = @($mouseInputStructure)
-                    [MouseSimulator]::SendInput(1, $inputArray, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT])) | Out-Null
-                }
-                'Keyboard' {
-                    # Press a non-disruptive key (F15 is rarely used)
-                    [System.Windows.Forms.SendKeys]::SendWait("{F15}")
-                }
-                'SystemAPI' {
-                    # Directly tell Windows to stay awake
-                    [DisplayState]::SetThreadExecutionState(
-                        [DisplayState]::ES_CONTINUOUS -bor
-                        [DisplayState]::ES_SYSTEM_REQUIRED -bor
-                        [DisplayState]::ES_DISPLAY_REQUIRED)
-                }
-            }
-
-            # Wait for the specified interval
-            Start-Sleep -Milliseconds $Interval
-        }
-
-        # Reset execution state if we used the API
-        if ($Methods -contains 'SystemAPI') {
-            [DisplayState]::SetThreadExecutionState([DisplayState]::ES_CONTINUOUS)
-        }
-    } -ArgumentList $Interval, $Methods, $Duration, $startTime
-
-    if ($Duration -gt 0) {
-        Write-Host "PSMouseJiggler KeepAwake will run for $Duration seconds" -ForegroundColor Yellow
-    }
-    else {
-        Write-Host "PSMouseJiggler KeepAwake is running indefinitely. Use Stop-PSMouseJiggler to stop." -ForegroundColor Yellow
+    if ($env:OS -eq 'Windows_NT') {
+        return @('SystemAPI', 'MouseHardware')
     }
 
-    # Clear console if incognito mode is enabled
-    if ($Incognito) {
-        Clear-Host
-    }
+    return @('MouseSoftware')
 }
 
 #endregion
@@ -1764,11 +2201,18 @@ Export-ModuleMember -Function @(
     'Save-Configuration',
     'Update-Configuration',
     'Reset-Configuration',
+    'Get-PSMJProfile',
+    'Save-PSMJProfile',
+    'Remove-PSMJProfile',
+    'Start-PSMJProfile',
+    'Get-PSMJDiagnostics',
     'Get-RandomMovementPattern',
     'Move-Mouse',
     'Start-MovementPattern',
     'Stop-MovementPattern',
     'Get-PSMJScheduledTasks',        # Updated name
+    'Get-PSMJScheduledTaskStatus',
+    'New-PSMJScheduledProfileTask',
     'New-PSMJScheduledTask',         # Updated name
     'Remove-PSMJScheduledTask',      # Updated name
     'Start-PSMJScheduledTask',       # Updated name
@@ -1777,5 +2221,5 @@ Export-ModuleMember -Function @(
     'Prevent-SystemIdle',
     'Send-KeyboardInput',
     'Send-MouseInput',
-    'Start-KeepAwake'
+    'Get-PSMJRecommendedMethods'
 )

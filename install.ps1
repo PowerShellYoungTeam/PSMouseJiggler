@@ -13,9 +13,23 @@ if ($PSVersionTable.PSVersion.Major -ge 6) {
     $moduleBasePath = Join-Path $documentsPath "PowerShell\Modules"
 }
 
-$moduleInstallPath = Join-Path $moduleBasePath "PSMouseJiggler"
+$sourceManifestPath = Join-Path $PSScriptRoot "src\PSMouseJiggler\PSMouseJiggler.psd1"
+$moduleVersion = (Test-ModuleManifest -Path $sourceManifestPath).Version
+$moduleRootPath = Join-Path $moduleBasePath "PSMouseJiggler"
+$moduleInstallPath = Join-Path $moduleRootPath $moduleVersion
 
 Write-Host "Installing PSMouseJiggler module to: $moduleInstallPath" -ForegroundColor Yellow
+
+# Remove a legacy flat (unversioned) copy left by older versions of this script.
+# A flat manifest sitting next to versioned subfolders makes Import-Module ignore it and load a stale version instead.
+$legacyManifestPath = Join-Path $moduleRootPath "PSMouseJiggler.psd1"
+if (Test-Path -Path $legacyManifestPath) {
+    Write-Host "Removing legacy unversioned install at: $moduleRootPath" -ForegroundColor Yellow
+    Get-ChildItem -Path $moduleRootPath -File | Remove-Item -Force
+    Get-ChildItem -Path $moduleRootPath -Directory -Exclude $moduleVersion.ToString() -ErrorAction SilentlyContinue |
+    Where-Object { -not (Test-Path (Join-Path $_.FullName "PSMouseJiggler.psd1")) } |
+    Remove-Item -Recurse -Force
+}
 
 # Create module directory if it doesn't exist
 if (-Not (Test-Path -Path $moduleInstallPath)) {

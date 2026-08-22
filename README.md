@@ -78,7 +78,10 @@ Start-PSMouseJiggler -Interval 2000 -MovementPattern Circular -Duration 3600
 Start-PSMouseJiggler -Incognito
 
 # Advanced keep-awake with multiple methods
-Start-KeepAwake -Methods @('MouseHardware', 'Keyboard', 'SystemAPI') -Interval 30000
+Start-PSMouseJiggler -Methods @('MouseHardware', 'Keyboard', 'SystemAPI') -Interval 30000
+
+# Keep some apps active without moving the mouse (SystemAPI + Keyboard)
+Start-PSMouseJiggler -Strategy AppKeepAlive -Interval 30000
 
 # Stop jiggling
 Stop-PSMouseJiggler
@@ -87,9 +90,9 @@ Stop-PSMouseJiggler
 ### Available Commands
 
 #### Core Functions
-- `Start-PSMouseJiggler` - Start basic mouse jiggling with pattern-based movement
-- `Stop-PSMouseJiggler` - Stop the currently running mouse jiggler or keep-awake
-- `Start-KeepAwake` - Advanced multi-method keep-awake functionality
+- `Start-PSMouseJiggler` - Start mouse jiggling and/or multi-method keep-awake (Methods/Strategy params)
+- `Stop-PSMouseJiggler` - Stop the currently running jiggler
+- `Get-PSMJRecommendedMethods` - Show methods selected by an intelligent strategy
 - `Show-PSMouseJigglerGUI` - Launch the graphical user interface
 
 #### Configuration Functions
@@ -97,9 +100,42 @@ Stop-PSMouseJiggler
 - `Save-Configuration` - Save configuration to file
 - `Update-Configuration` - Update specific configuration values
 - `Reset-Configuration` - Reset to default configuration
+- `Get-PSMJProfile` - List saved profiles or retrieve one by name
+- `Save-PSMJProfile` - Save or replace a named profile
+- `Remove-PSMJProfile` - Remove a saved profile
+- `Start-PSMJProfile` - Start a saved profile
+- `Get-PSMJDiagnostics` - Report runtime, configuration, and profile health
+
+Example saved profile:
+
+```powershell
+$profile = [PSCustomObject]@{
+   Interval        = 1500
+   Duration        = 3600
+   MovementPattern = 'Circular'
+   Incognito       = $true
+}
+
+Save-PSMJProfile -Name 'Presentation' -Profile $profile
+Get-PSMJProfile -Name 'Presentation'
+Start-PSMJProfile -Name 'Presentation'
+Get-PSMJDiagnostics | Format-List
+Remove-PSMJProfile -Name 'Presentation'
+```
+
+Keep-awake strategies are opt-in. The default `Manual` strategy uses whatever `-Methods` you pass in (or plain mouse jiggling if omitted). Use `Adaptive` to select a low-disruption method combination for the current Windows environment, `LowImpact` to use the Windows power API only, `Compatibility` to use standard software mouse movement, or `AppKeepAlive` to combine System API + Keyboard (keeps some Windows apps active without moving the mouse):
+
+```powershell
+Get-PSMJRecommendedMethods -Strategy Adaptive
+Start-PSMouseJiggler -Strategy Adaptive -Interval 30000
+Start-PSMouseJiggler -Strategy LowImpact -Duration 3600
+Start-PSMouseJiggler -Strategy AppKeepAlive -Duration 3600
+```
 
 #### Scheduled Task Functions (with PSMJ prefix to avoid conflicts)
 - `Get-PSMJScheduledTasks` - List PSMouseJiggler scheduled tasks
+- `Get-PSMJScheduledTaskStatus` - Return normalized task status for monitoring or GUI use
+- `New-PSMJScheduledProfileTask` - Schedule a saved profile by name
 - `New-PSMJScheduledTask` - Create a new scheduled task
 - `Remove-PSMJScheduledTask` - Remove a scheduled task
 - `Start-PSMJScheduledTask` - Manually start a scheduled task
