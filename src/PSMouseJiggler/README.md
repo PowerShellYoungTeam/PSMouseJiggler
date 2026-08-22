@@ -256,6 +256,6 @@ Contributions are welcome! Please feel free to submit a Pull Request. See CONTRI
 
 ---
 
-**Version**: 1.1.0
+**Version**: 2.0.0
 **Author**: Steven Wight
-**Last Updated**: October 2025
+**Last Updated**: August 2026
