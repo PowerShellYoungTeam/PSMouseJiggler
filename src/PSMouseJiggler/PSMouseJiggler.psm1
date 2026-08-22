@@ -451,9 +451,9 @@ function Show-PSMouseJigglerGUI {
     [CmdletBinding()]
     param()
 
-    # Create the main form
+    # Create the main form (rememeber to update version number in the title if you change it!)
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = "PSMouseJiggler v1.1.0"
+    $form.Text = "PSMouseJiggler v2.2.0"
     $form.Size = New-Object System.Drawing.Size(600, 550)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedDialog"
