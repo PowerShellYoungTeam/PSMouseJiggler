@@ -21,6 +21,7 @@ Run through it any time `Start-PSMouseJiggler`, profiles, the GUI, or scheduled 
 - [ ] `-Methods @('MouseHardware')`
 - [ ] `-Methods @('MouseSoftware','MouseHardware')`
 - [ ] `-Methods @('Keyboard')` — no visible mouse movement
+- [ ] `-Methods @('Keyboard')` — while running, type into a focused terminal/editor window and confirm no stray characters, focus changes, or other interference occur (SendInput targets the system input stream, not the foreground window)
 - [ ] `-Methods @('SystemAPI')` — no visible mouse movement, system stays awake
 - [ ] `-Methods @('All')` — all four methods cycle
 - [ ] `-Strategy Adaptive` / `LowImpact` / `Compatibility`

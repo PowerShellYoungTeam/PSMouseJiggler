@@ -255,6 +255,30 @@ function Start-PSMouseJiggler {
                 public const int INPUT_MOUSE = 0;
                 public const int MOUSEEVENTF_MOVE = 0x0001;
             }
+
+            public static class KeyboardSimulator {
+                [StructLayout(LayoutKind.Sequential)]
+                public struct KEYBDINPUT {
+                    public ushort wVk;
+                    public ushort wScan;
+                    public uint dwFlags;
+                    public uint time;
+                    public IntPtr dwExtraInfo;
+                }
+
+                [StructLayout(LayoutKind.Sequential)]
+                public struct INPUT {
+                    public uint type;
+                    public KEYBDINPUT ki;
+                }
+
+                [DllImport("user32.dll", SetLastError = true)]
+                public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+                public const int INPUT_KEYBOARD = 1;
+                public const uint KEYEVENTF_KEYUP = 0x0002;
+                public const ushort VK_F15 = 0x7E;
+            }
 "@
 
             $endTime = if ($Duration -gt 0) { $StartTime.AddSeconds($Duration) } else { [DateTime]::MaxValue }
@@ -290,8 +314,18 @@ function Start-PSMouseJiggler {
                         [MouseSimulator]::SendInput(1, $inputArray, [System.Runtime.InteropServices.Marshal]::SizeOf([type][MouseSimulator+INPUT])) | Out-Null
                     }
                     'Keyboard' {
-                        # Press a non-disruptive key (F15 is rarely used)
-                        [System.Windows.Forms.SendKeys]::SendWait("{F15}")
+                        # Press a non-disruptive key (F15) via SendInput, not SendKeys, so it doesn't target the foreground window
+                        $keyDown = New-Object KeyboardSimulator+INPUT
+                        $keyDown.type = [KeyboardSimulator]::INPUT_KEYBOARD
+                        $keyDown.ki.wVk = [KeyboardSimulator]::VK_F15
+
+                        $keyUp = New-Object KeyboardSimulator+INPUT
+                        $keyUp.type = [KeyboardSimulator]::INPUT_KEYBOARD
+                        $keyUp.ki.wVk = [KeyboardSimulator]::VK_F15
+                        $keyUp.ki.dwFlags = [KeyboardSimulator]::KEYEVENTF_KEYUP
+
+                        $inputArray = @($keyDown, $keyUp)
+                        [KeyboardSimulator]::SendInput(2, $inputArray, [System.Runtime.InteropServices.Marshal]::SizeOf([type][KeyboardSimulator+INPUT])) | Out-Null
                     }
                     'SystemAPI' {
                         # Directly tell Windows to stay awake
@@ -2049,8 +2083,8 @@ function Prevent-SystemIdle {
 .DESCRIPTION
     Uses SendInput Windows API to simulate hardware-level keyboard events.
 
-.PARAMETER Key
-    The key to simulate. Defaults to a non-disruptive key (F15).
+.PARAMETER VirtualKeyCode
+    The virtual-key code to simulate. Defaults to a non-disruptive key (VK_F15, 0x7E).
 
 .EXAMPLE
     Send-KeyboardInput
@@ -2060,12 +2094,55 @@ function Send-KeyboardInput {
     [CmdletBinding()]
     param (
         [Parameter()]
-        [string]$Key = "{F15}"
+        [ushort]$VirtualKeyCode = 0x7E
     )
 
-    Add-Type -AssemblyName System.Windows.Forms
-    [System.Windows.Forms.SendKeys]::SendWait($Key)
-    Write-Verbose "Sent keyboard input: $Key"
+    # SendInput (not SendKeys) so the event goes to the system input stream, not the foreground window
+    Add-Type -TypeDefinition @"
+    using System;
+    using System.Runtime.InteropServices;
+
+    public static class KeyboardSimulator {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct KEYBDINPUT {
+            public ushort wVk;
+            public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct INPUT {
+            public uint type;
+            public KEYBDINPUT ki;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        public const int INPUT_KEYBOARD = 1;
+        public const uint KEYEVENTF_KEYUP = 0x0002;
+    }
+"@
+
+    $keyDown = New-Object KeyboardSimulator+INPUT
+    $keyDown.type = [KeyboardSimulator]::INPUT_KEYBOARD
+    $keyDown.ki.wVk = $VirtualKeyCode
+
+    $keyUp = New-Object KeyboardSimulator+INPUT
+    $keyUp.type = [KeyboardSimulator]::INPUT_KEYBOARD
+    $keyUp.ki.wVk = $VirtualKeyCode
+    $keyUp.ki.dwFlags = [KeyboardSimulator]::KEYEVENTF_KEYUP
+
+    $inputArray = @($keyDown, $keyUp)
+    $result = [KeyboardSimulator]::SendInput(2, $inputArray, [System.Runtime.InteropServices.Marshal]::SizeOf([type][KeyboardSimulator+INPUT]))
+
+    if ($result -eq 0) {
+        Write-Error "SendInput failed to send keyboard event. Win32 error: $([System.Runtime.InteropServices.Marshal]::GetLastWin32Error())"
+    }
+
+    Write-Verbose "Sent hardware-level keyboard input: VK=0x$($VirtualKeyCode.ToString('X2'))"
 }
 
 <#
