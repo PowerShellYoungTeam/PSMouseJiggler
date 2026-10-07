@@ -67,7 +67,7 @@ catch {
 # Test 5: Pester Tests
 Write-Host "5. Running Pester tests..." -ForegroundColor Yellow
 try {
-    $testResult = Invoke-Pester -Path "tests\PSMouseJiggler.Module.Tests.ps1" -PassThru -ErrorAction Stop
+    $testResult = Invoke-Pester -Path "tests\PSMouseJiggler.Tests.ps1" -PassThru -ErrorAction Stop
     if ($testResult.FailedCount -eq 0) {
         $successes += "✓ All $($testResult.PassedCount) Pester tests passed"
     }
@@ -82,16 +82,16 @@ catch {
 # Test 6: CI/CD Paths
 Write-Host "6. Validating CI/CD workflow paths..." -ForegroundColor Yellow
 $ciContent = Get-Content ".github\workflows\ci.yml" -Raw
-$releaseContent = Get-Content ".github\workflows\release.yml" -Raw
+$releaseContent = Get-Content ".github\workflows\publish.yml" -Raw
 
-if ($ciContent -match "src/PSMouseJiggler/PSMouseJiggler\.psd1") {
+if ($ciContent -match "src[/\\]PSMouseJiggler[/\\]PSMouseJiggler\.psd1") {
     $successes += "✓ CI workflow uses correct path"
 }
 else {
     $errors += "✗ CI workflow path is incorrect"
 }
 
-if ($releaseContent -match "src\\PSMouseJiggler\\") {
+if ($releaseContent -match "src[/\\]PSMouseJiggler[/\\]") {
     $successes += "✓ Release workflow uses correct path"
 }
 else {

@@ -7,7 +7,7 @@
     RootModule             = 'PSMouseJiggler.psm1'
 
     # Version number of this module.
-    ModuleVersion          = '2.0.0'
+    ModuleVersion          = '2.0.1'
 
     # Supported PSEditions
     CompatiblePSEditions   = @('Desktop', 'Core')
@@ -130,6 +130,14 @@
 
             # ReleaseNotes of this module
             ReleaseNotes             = @'
+                Version 2.0.1
+                - Fixed #21: the 'Keyboard' method (and Send-KeyboardInput) now sends the F15 key via a
+                  low-level SendInput/KEYBDINPUT P/Invoke call instead of SendKeys.SendWait, so it no
+                  longer targets/posts into the currently focused (foreground) window.
+                - BREAKING (minor, rarely-used API): Send-KeyboardInput's -Key string parameter
+                  (SendKeys syntax, e.g. "{F15}") replaced with -VirtualKeyCode (ushort virtual-key
+                  code, default 0x7E / VK_F15).
+
                 Version 2.0.0 (BREAKING CHANGES)
                 - Removed Start-KeepAwake. Use Start-PSMouseJiggler -Methods / -Strategy instead:
                     - Old: Start-KeepAwake -Methods @('MouseHardware','SystemAPI')
