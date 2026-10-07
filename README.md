@@ -194,7 +194,7 @@ PSMouseJiggler/
 - **Long Downloads**: Prevent sleep during large file transfers
 - **Video Rendering**: Keep system awake during lengthy rendering processes
 - **Monitoring**: Maintain visibility of monitoring dashboards
-- **Testing**: Prevent idle during automated test runs
+- **Testing**: Prevent idle during automated test runs on your local machine or brokered sessions on remote machines
 
 ## Contributing
 
