@@ -1,6 +1,12 @@
 # PSMouseJiggler
 
-PSMouseJiggler is a PowerShell module designed to simulate mouse movements to prevent your computer from going idle. This project provides both a command-line interface and a graphical user interface (GUI) for ease of use.
+PSMouseJiggler is a PowerShell module that simulates mouse movements and offers other keep-awake methods to help reduce interruptions from system idle behavior. It provides both a command-line interface and a graphical user interface (GUI).
+
+## Project History and Intended Use
+
+PSMouseJiggler began as a slightly cheeky way to work around centrally configured sleep and screensaver settings while watching scripts run or giving presentations. Later, during authorised late-night network testing, it found a legitimate use helping keep VDI sessions active so idle timeouts were less likely to interrupt tests or produce misleading results. Its use grew from there to other situations where a system needs to remain active with permission.
+
+PSMouseJiggler is not intended to fool workplace monitoring systems. Its interaction with those systems has not been tested, so we make no claim about whether it can or cannot bypass them. Use the tool only where you are authorised to do so and in accordance with applicable policies. Its effect on idle behavior depends on the system, configuration, and method used; it does not guarantee that a session will stay active.
 
 ![CI](https://github.com/PowerShellYoungTeam/PSMouseJiggler/actions/workflows/ci.yml/badge.svg)
 [![PowerShell Gallery Version](https://img.shields.io/powershellgallery/v/PSMouseJiggler)](https://www.powershellgallery.com/packages/PSMouseJiggler)
@@ -13,7 +19,7 @@ PSMouseJiggler is a PowerShell module designed to simulate mouse movements to pr
 - **Graphical User Interface**: Modern tabbed GUI with Basic, Advanced, and Quick Launch modes
 - **Quick Launch Profiles**: Pre-configured profiles for common scenarios with one-click start
 - **Custom Movement Patterns**: Choose from Random, Horizontal, Vertical, or Circular patterns
-- **Incognito Mode**: Minimizes GUI and clears console for discreet operation
+- **Incognito Mode**: Minimizes the GUI and clears console output (useful for presentations, videos, script watching/getting console back)
 - **Scheduled Jiggling**: Set up automatic jiggling at specified times using scheduled tasks
 - **Configuration Management**: Load and save user preferences for a personalized experience
 - **PowerShell Module**: Properly structured as a PowerShell module for easy installation and management
@@ -62,7 +68,7 @@ Show-PSMouseJigglerGUI
 
 The GUI provides three modes:
 - **Basic Mode**: Simple mouse jiggling with pattern selection
-- **Advanced Mode**: Combine multiple keep-awake methods for maximum effectiveness
+- **Advanced Mode**: Combine multiple keep-awake methods; effectiveness depends on the environment
 - **Quick Launch**: One-click pre-configured profiles for common scenarios
 
 #### Command Line Usage
@@ -74,7 +80,7 @@ Start-PSMouseJiggler
 # With custom settings
 Start-PSMouseJiggler -Interval 2000 -MovementPattern Circular -Duration 3600
 
-# Incognito mode (discrete operation)
+# Incognito mode (minimizes the GUI and clears console output)
 Start-PSMouseJiggler -Incognito
 
 # Advanced keep-awake with multiple methods
@@ -157,7 +163,7 @@ For detailed usage instructions, please refer to the USAGE.md file.
 The GUI includes five pre-configured profiles for common scenarios:
 
 1. **[Mouse] Basic Discrete** - Random mouse movements every 1 second with incognito mode
-2. **[Lock] Maximum Security** - Hardware mouse + System API for strict security policies
+2. **[Lock] Maximum Security** - Hardware mouse + System API; effectiveness depends on the environment and applicable policies
 3. **[Key] Keyboard Only** - Keyboard input only, no mouse movement
 4. **[API] System API Only** - Direct Windows power management control
 5. **[MAX] All Methods** - Maximum reliability using all available techniques
@@ -189,12 +195,11 @@ PSMouseJiggler/
 
 ## Use Cases
 
-- **Presentations**: Keep your screen active during long presentations
-- **Remote Work**: Maintain active status in communication apps
-- **Long Downloads**: Prevent sleep during large file transfers
-- **Video Rendering**: Keep system awake during lengthy rendering processes
-- **Monitoring**: Maintain visibility of monitoring dashboards
-- **Testing**: Prevent idle during automated test runs
+- **Presentations and scripts**: Help reduce idle interruptions while presenting or watching a script run
+- **Authorised network testing**: Help keep a VDI session active during a test so an idle timeout is less likely to interrupt it or affect results
+- **Long-running tasks**: Help reduce idle interruptions during downloads, rendering, or dashboard monitoring
+
+These are use cases, not guarantees; behavior depends on the system and its settings.
 
 ## Contributing
 
