@@ -1,6 +1,12 @@
 # PSMouseJiggler Module
 
-A comprehensive PowerShell module to simulate mouse movements, keyboard input, and system power management to prevent system idle. Includes modern tabbed GUI interface, Quick Launch profiles, configurable movement patterns, advanced keep-awake methods, and scheduled task support.
+A PowerShell module with mouse movement simulation, keyboard input, and system power-management methods that can help reduce interruptions from system idle behavior. It includes a tabbed GUI, Quick Launch profiles, configurable movement patterns, and scheduled task support.
+
+## Project History and Intended Use
+
+PSMouseJiggler began as a slightly cheeky way to work around centrally configured sleep and screensaver settings while watching scripts run or giving presentations. Later, during authorised late-night network testing, it found a legitimate use helping keep VDI sessions active so idle timeouts were less likely to interrupt tests or produce misleading results. Its use grew from there to other situations where a system needs to remain active with permission.
+
+PPSMouseJiggler is not intended to fool workplace monitoring systems, and the author does not condone using it to falsify work activity or misrepresent productivity. Its interaction with monitoring software has not been tested, so no claim is made about whether it can or cannot bypass them. Its effect on idle behaviour also depends on the system, configuration, and method used, meaning it does not guarantee that a session will stay active. In short: use your common sense, stick to your workplace policies, and don't do anything daft.
 
 ## Installation
 
@@ -54,12 +60,12 @@ Show-PSMouseJigglerGUI
   - Quick Launch: Five pre-configured profiles for common scenarios
 - **Quick Launch Profiles**:
   - [Mouse] Basic Discrete: Random movements with incognito mode
-  - [Lock] Maximum Security: Hardware + System API for strict policies
+  - [Lock] Maximum Security: Hardware + System API; effectiveness depends on the environment and applicable policies
   - [Key] Keyboard Only: Non-visual keep-awake method
   - [API] System API Only: Minimal resource usage
-  - [MAX] All Methods: Maximum reliability combining all techniques
+  - [MAX] All Methods: Combines available methods; effectiveness depends on the environment
 - **Custom Movement Patterns**: Random, Horizontal, Vertical, and Circular patterns
-- **Incognito Mode**: Minimizes GUI and clears console for discreet operation
+- **Incognito Mode**: Minimizes the GUI and clears console output
 - **Scheduled Jiggling**: Set up automatic jiggling at specified times using scheduled tasks
 - **Configuration Management**: Load and save user preferences for a personalized experience
 - **PowerShell Module**: Properly structured as a PowerShell module for easy installation and management
@@ -113,14 +119,14 @@ Start-PSMouseJiggler -Interval 2000 -MovementPattern 'Circular'
 # Start for specific duration (5 minutes) with incognito mode
 Start-PSMouseJiggler -Duration 300 -Incognito
 
-# Use hardware mouse input for strict security policies
+# Use the hardware mouse input method
 Start-PSMouseJiggler -Methods @('MouseHardware') -Interval 30000
 ```
 
 ### Advanced Keep-Awake Usage
 
 ```powershell
-# Use multiple methods for maximum reliability
+# Combine multiple available methods
 Start-PSMouseJiggler -Methods @('MouseSoftware', 'MouseHardware', 'Keyboard', 'SystemAPI')
 
 # Keyboard only (no visible movement)
@@ -221,7 +227,7 @@ The GUI provides three main tabs:
 
 - Added tabbed GUI interface (Basic, Advanced, Quick Launch)
 - Implemented Quick Launch profiles for common scenarios
-- Added incognito mode for discreet operation
+- Added incognito mode to minimize the GUI and clear console output
 - Implemented hardware-level mouse input (SendInput API)
 - Added keyboard input simulation (F15 key)
 - Implemented direct Windows power management (SetThreadExecutionState)

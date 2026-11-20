@@ -2,7 +2,13 @@
 
 ## Overview
 
-PSMouseJiggler is a comprehensive PowerShell module that prevents your computer from going idle through various methods including mouse movement simulation, keyboard input, and direct Windows power management control.
+PSMouseJiggler is a PowerShell module with mouse movement simulation, keyboard input, and Windows power-management methods that can help reduce interruptions from system idle behavior.
+
+## Project History and Intended Use
+
+The project began as a slightly cheeky way to work around centrally configured sleep and screensaver settings while watching scripts run or giving presentations. Later, during authorised late-night network testing, it found a legitimate use helping keep VDI sessions active so idle timeouts were less likely to interrupt tests or produce misleading results. Its use grew from there.
+
+PSMouseJiggler is not intended to fool workplace monitoring systems. Its interaction with those systems has not been tested, so we make no claim about whether it can or cannot bypass them. Use the tool only where you are authorised to do so and in accordance with applicable policies. Its effect on idle behavior depends on the system, configuration, and method used; it does not guarantee that a session will stay active.
 
 ## Table of Contents
 
@@ -67,13 +73,13 @@ Perfect for simple mouse jiggling needs:
 - **Duration**: How long to run (0 = run until stopped)
 - **Mouse Input Method**:
   - Software (Standard): Most compatible, works with standard cursor control
-  - Hardware (Low-level): Better for strict security policies using SendInput API
+  - Hardware (Low-level): Uses the SendInput API; availability and behavior vary by environment
   - Both (Redundant): Maximum reliability using both methods
 - **Incognito Mode**: Minimize window and clear console when started
 
 ### Advanced Mode Tab
 
-For maximum effectiveness using multiple keep-awake techniques:
+To combine multiple keep-awake techniques:
 
 **Available Methods** (select one or more):
 
@@ -216,7 +222,7 @@ Start-PSMouseJiggler -MovementPattern Circular
 
 ### Incognito Mode
 
-Run discreetly without visible console output:
+Minimize the GUI and clear console output when starting:
 
 ```powershell
 # Command line incognito
@@ -504,16 +510,16 @@ Get-Command -Module PSMouseJiggler
    - Basic software mouse for general use
    - Hardware + System API for strict environments
    - Keyboard only when mouse movement is disruptive
-5. **Use Incognito**: Enable incognito mode for discrete operation
+5. **Use Incognito**: Enable incognito mode when you want the GUI minimized and console output cleared
 6. **Monitor Resource Usage**: System API uses least resources
 7. **Schedule Wisely**: Use scheduled tasks for predictable timing needs
 
 ## Security Considerations
 
-- PSMouseJiggler simulates user activity but doesn't bypass security policies
-- Some enterprise environments may restrict input simulation
-- Use responsibly and in accordance with your organization's policies
-- Incognito mode provides discretion but doesn't hide process from administrators
+- PSMouseJiggler is not intended to fool workplace monitoring systems. Its interaction with those systems has not been tested, so no claim is made about whether it can or cannot bypass them.
+- Some managed environments may restrict input simulation or configure idle behavior centrally.
+- Use the tool only where you are authorised to do so and in accordance with your organization's policies.
+- Incognito mode minimizes the GUI and clears console output; it is a presentation option, not a workplace-monitoring feature.
 
 ## Performance Notes
 
@@ -521,7 +527,7 @@ Get-Command -Module PSMouseJiggler
 - **Hardware Mouse**: Slightly higher CPU, better compatibility
 - **Keyboard Input**: Very low CPU usage
 - **System API**: Lowest CPU usage, most efficient
-- **All Methods**: Higher CPU usage but maximum reliability
+- **All Methods**: Higher CPU usage than some individual methods; effectiveness depends on the environment
 
 ## License
 
