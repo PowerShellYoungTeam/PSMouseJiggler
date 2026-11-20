@@ -6,7 +6,7 @@ A PowerShell module with mouse movement simulation, keyboard input, and system p
 
 PSMouseJiggler began as a slightly cheeky way to work around centrally configured sleep and screensaver settings while watching scripts run or giving presentations. Later, during authorised late-night network testing, it found a legitimate use helping keep VDI sessions active so idle timeouts were less likely to interrupt tests or produce misleading results. Its use grew from there to other situations where a system needs to remain active with permission.
 
-PPSMouseJiggler is not intended to fool workplace monitoring systems, and the author does not condone using it to falsify work activity or misrepresent productivity. Its interaction with monitoring software has not been tested, so no claim is made about whether it can or cannot bypass them. Its effect on idle behaviour also depends on the system, configuration, and method used, meaning it does not guarantee that a session will stay active. In short: use your common sense, stick to your workplace policies, and don't do anything daft.
+PSMouseJiggler is not intended to fool workplace monitoring systems, and the author does not condone using it to falsify work activity or misrepresent productivity. Its interaction with monitoring software has not been tested, so no claim is made about whether it can or cannot bypass them. Its effect on idle behaviour also depends on the system, configuration, and method used, meaning it does not guarantee that a session will stay active. In short: use your common sense, stick to your workplace policies, and don't do anything daft.
 
 ## Installation
 
